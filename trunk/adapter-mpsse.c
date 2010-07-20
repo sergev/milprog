@@ -449,7 +449,7 @@ static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
 /*
  * Запись регистра MEM-AP.
  */
-static void mpsse_ap_write (adapter_t *adapter, int reg, unsigned value)
+static void mpsse_memap_write (adapter_t *adapter, int reg, unsigned value)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
 
@@ -462,15 +462,24 @@ static void mpsse_ap_write (adapter_t *adapter, int reg, unsigned value)
         (unsigned long long) value << 3, 1);
     unsigned reply = mpsse_recv (a) & 7;
     if (debug_level > 1) {
-        fprintf (stderr, "MEM-AP write %08x to %02x, reply %x\n",
-            value, reg, reply);
+        fprintf (stderr, "MEM-AP write %08x to %s (%02x), reply %x\n", value,
+            reg == MEM_AP_CSW  ? "CSW" :
+            reg == MEM_AP_TAR  ? "TAR" :
+            reg == MEM_AP_DRW  ? "DRW" :
+            reg == MEM_AP_BD0  ? "BD0" :
+            reg == MEM_AP_BD1  ? "BD1" :
+            reg == MEM_AP_BD2  ? "BD2" :
+            reg == MEM_AP_BD3  ? "BD3" :
+            reg == MEM_AP_CFG  ? "CFG" :
+            reg == MEM_AP_BASE ? "BASE" :
+            reg == MEM_AP_IDR  ? "IDR" : "???", reg, reply);
     }
 }
 
 /*
  * Чтение регистра MEM-AP.
  */
-static unsigned mpsse_ap_read (adapter_t *adapter, int reg)
+static unsigned mpsse_memap_read (adapter_t *adapter, int reg)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
     unsigned long long reply;
@@ -509,14 +518,7 @@ static unsigned mpsse_ap_read (adapter_t *adapter, int reg)
  */
 static void mpsse_stop_cpu (adapter_t *adapter)
 {
-mpsse_dp_write (adapter, DP_CTRL_STAT, 0xf0000021);
-mpsse_dp_read (adapter, DP_CTRL_STAT);
-mpsse_ap_read (adapter, MEM_AP_CSW);
-mpsse_ap_read (adapter, MEM_AP_IDR);
-//mpsse_ap_read (adapter, MEM_AP_CFG);
-//mpsse_ap_read (adapter, MEM_AP_BASE);
-//    mpsse_ap_write (adapter, MEM_AP_CSW, CSW_32BIT | /*CSW_ADDRINC_SINGLE |*/
-//        CSW_DBGSWENABLE | CSW_MASTER_DEBUG | CSW_HPROT);
+/*TODO*/
 }
 
 #if 0
@@ -530,7 +532,7 @@ static void mpsse_read_block (adapter_t *adapter,
     unsigned oscr_new = adapter->oscr | OSCR_SlctMEM | OSCR_RO;
     if (oscr_new != adapter->oscr) {
         adapter->oscr = oscr_new;
-        mpsse_ap_write (adapter, adapter->oscr, OnCD_OSCR);
+        mpsse_memap_write (adapter, adapter->oscr, OnCD_OSCR);
     }
     mpsse_flush_output (a);
 
@@ -539,8 +541,8 @@ static void mpsse_read_block (adapter_t *adapter,
         if (n > 10)
             n = 10;
         for (i=0; i<n; i++) {
-            mpsse_ap_write (adapter, addr + i*4, OnCD_OMAR);
-            mpsse_ap_write (adapter, 0, OnCD_MEM);
+            mpsse_memap_write (adapter, addr + i*4, OnCD_OMAR);
+            mpsse_memap_write (adapter, 0, OnCD_MEM);
             mpsse_send (a, 0, 0, 9 + 32, OnCD_OMDR | IRd_READ, 1);
         }
 
@@ -567,13 +569,13 @@ static void mpsse_write_block (adapter_t *adapter,
     unsigned oscr_new = (adapter->oscr & ~OSCR_RO) | OSCR_SlctMEM;
     if (oscr_new != adapter->oscr) {
         adapter->oscr = oscr_new;
-        mpsse_ap_write (adapter, adapter->oscr, OnCD_OSCR);
+        mpsse_memap_write (adapter, adapter->oscr, OnCD_OSCR);
     }
 
     while (nwords-- > 0) {
-        mpsse_ap_write (adapter, addr, OnCD_OMAR);
-        mpsse_ap_write (adapter, *data, OnCD_OMDR);
-        mpsse_ap_write (adapter, 0, OnCD_MEM);
+        mpsse_memap_write (adapter, addr, OnCD_OMAR);
+        mpsse_memap_write (adapter, *data, OnCD_OMDR);
+        mpsse_memap_write (adapter, 0, OnCD_MEM);
         addr += 4;
         data++;
     }
@@ -585,15 +587,15 @@ static void mpsse_write_nwords (adapter_t *adapter, unsigned nwords, va_list arg
     unsigned oscr_new = (adapter->oscr & ~OSCR_RO) | OSCR_SlctMEM;
     if (oscr_new != adapter->oscr) {
         adapter->oscr = oscr_new;
-        mpsse_ap_write (adapter, adapter->oscr, OnCD_OSCR);
+        mpsse_memap_write (adapter, adapter->oscr, OnCD_OSCR);
     }
 
     while (nwords-- > 0) {
         unsigned addr = va_arg (args, unsigned);
         unsigned data = va_arg (args, unsigned);
-        mpsse_ap_write (adapter, addr, OnCD_OMAR);
-        mpsse_ap_write (adapter, data, OnCD_OMDR);
-        mpsse_ap_write (adapter, 0, OnCD_MEM);
+        mpsse_memap_write (adapter, addr, OnCD_OMAR);
+        mpsse_memap_write (adapter, data, OnCD_OMDR);
+        mpsse_memap_write (adapter, 0, OnCD_MEM);
     }
 }
 
@@ -606,25 +608,25 @@ static void mpsse_program_block32 (adapter_t *adapter,
     unsigned oscr_new = (adapter->oscr & ~OSCR_RO) | OSCR_SlctMEM;
     if (oscr_new != adapter->oscr) {
         adapter->oscr = oscr_new;
-        mpsse_ap_write (adapter, adapter->oscr, OnCD_OSCR);
+        mpsse_memap_write (adapter, adapter->oscr, OnCD_OSCR);
     }
 
     while (nwords-- > 0) {
-        mpsse_ap_write (adapter, base + addr_odd, OnCD_OMAR);
-        mpsse_ap_write (adapter, cmd_aa, OnCD_OMDR);
-        mpsse_ap_write (adapter, 0, OnCD_MEM);
+        mpsse_memap_write (adapter, base + addr_odd, OnCD_OMAR);
+        mpsse_memap_write (adapter, cmd_aa, OnCD_OMDR);
+        mpsse_memap_write (adapter, 0, OnCD_MEM);
 
-        mpsse_ap_write (adapter, base + addr_even, OnCD_OMAR);
-        mpsse_ap_write (adapter, cmd_55, OnCD_OMDR);
-        mpsse_ap_write (adapter, 0, OnCD_MEM);
+        mpsse_memap_write (adapter, base + addr_even, OnCD_OMAR);
+        mpsse_memap_write (adapter, cmd_55, OnCD_OMDR);
+        mpsse_memap_write (adapter, 0, OnCD_MEM);
 
-        mpsse_ap_write (adapter, base + addr_odd, OnCD_OMAR);
-        mpsse_ap_write (adapter, cmd_a0, OnCD_OMDR);
-        mpsse_ap_write (adapter, 0, OnCD_MEM);
+        mpsse_memap_write (adapter, base + addr_odd, OnCD_OMAR);
+        mpsse_memap_write (adapter, cmd_a0, OnCD_OMDR);
+        mpsse_memap_write (adapter, 0, OnCD_MEM);
 
-        mpsse_ap_write (adapter, addr, OnCD_OMAR);
-        mpsse_ap_write (adapter, *data, OnCD_OMDR);
-        mpsse_ap_write (adapter, 0, OnCD_MEM);
+        mpsse_memap_write (adapter, addr, OnCD_OMAR);
+        mpsse_memap_write (adapter, *data, OnCD_OMDR);
+        mpsse_memap_write (adapter, 0, OnCD_MEM);
 
         addr += 4;
         data++;
@@ -748,8 +750,10 @@ failed: usb_release_interface (a->usbdev, 0);
     a->adapter.get_idcode = mpsse_get_idcode;
     a->adapter.stop_cpu = mpsse_stop_cpu;
     a->adapter.reset_cpu = mpsse_reset_cpu;
-    a->adapter.ap_read = mpsse_ap_read;
-    a->adapter.ap_write = mpsse_ap_write;
+    a->adapter.dp_read = mpsse_dp_read;
+    a->adapter.dp_write = mpsse_dp_write;
+    a->adapter.memap_read = mpsse_memap_read;
+    a->adapter.memap_write = mpsse_memap_write;
 
     /* Расширенные возможности. */
 //    a->adapter.block_words = 999999;

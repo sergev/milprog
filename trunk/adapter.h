@@ -30,8 +30,10 @@ struct _adapter_t {
     unsigned (*get_idcode) (adapter_t *a);
     void (*stop_cpu) (adapter_t *a);
     void (*reset_cpu) (adapter_t *a);
-    void (*ap_write) (adapter_t *a, int reg, unsigned val);
-    unsigned (*ap_read) (adapter_t *a, int reg);
+    void (*dp_write) (adapter_t *a, int reg, unsigned val);
+    unsigned (*dp_read) (adapter_t *a, int reg);
+    void (*memap_write) (adapter_t *a, int reg, unsigned val);
+    unsigned (*memap_read) (adapter_t *a, int reg);
 #if 0
     /*
      * Расширенные возможности.

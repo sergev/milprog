@@ -64,7 +64,7 @@
 #define MEM_AP_IDR              0xFC    /* Identification (read-only) */
 
 /*
- * Fields of the MEM_AP_CSW register.
+ * Fields of the MEM_AP_CSW register for Cortex-M3.
  */
 #define CSW_8BIT		0       /* Size of the access to perform */
 #define CSW_16BIT		1
@@ -73,13 +73,11 @@
 #define CSW_ADDRINC_OFF		0
 #define CSW_ADDRINC_SINGLE	(1<<4)
 #define CSW_ADDRINC_PACKED	(2<<4)
-#define CSW_DEVICE_EN		(1<<6)  /* Device enabled */
+#define CSW_DEVICE_EN		(1<<6)  /* MEM transfers permitted */
 #define CSW_TRIN_PROG		(1<<7)  /* Transfer in progress */
-#define CSW_SPIDEN		(1<<23) /* Secure privileged debug enabled */
     /* 30:24 - implementation-defined! */
-#define CSW_HPROT		(1<<25) /* ? */
-#define CSW_MASTER_DEBUG	(1<<29) /* ? */
-#define CSW_DBGSWENABLE		(1<<31) /* Debug software access enable */
+#define CSW_HPROT		(1<<25) /* User/privilege control */
+#define CSW_MASTER_DEBUG	(1<<29) /* Allow debugger to halt the core */
 
 /*
  * Fields of the MEM_AP_CFG register.
