@@ -231,7 +231,6 @@ void do_probe ()
  */
 static int check_clean (target_t *t, unsigned addr)
 {
-#if 0
     unsigned offset, i, sz, end, mem [16*1024];
 
     sz = target_flash_bytes (t);
@@ -249,31 +248,25 @@ static int check_clean (target_t *t, unsigned addr)
         }
     }
     printf (_("Clean flash: %08X\n"), addr);
-#endif
     return 1;
 };
 
 void program_block (target_t *mc, unsigned addr, int len)
 {
-#if 0
     /* Write flash memory. */
     target_program_block (mc, memory_base + addr,
         (len + 3) / 4, (unsigned*) (memory_data + addr));
-#endif
 }
 
 void write_block (target_t *mc, unsigned addr, int len)
 {
-#if 0
     /* Write static memory. */
     target_write_block (mc, memory_base + addr,
         (len + 3) / 4, (unsigned*) (memory_data + addr));
-#endif
 }
 
 void verify_block (target_t *mc, unsigned addr, int len)
 {
-#if 0
     int i;
     unsigned word, expected, block [BLOCKSZ/4];
 
@@ -288,29 +281,16 @@ void verify_block (target_t *mc, unsigned addr, int len)
         if (debug_level > 1)
             printf (_("read word %08X at address %08X\n"),
                 word, addr + i + memory_base);
-        while (word != expected) {
-            /* Возможно, не все нули прописались в flash-память.
-             * Пробуем повторить операцию. */
-//printf ("\nerror at address %08X: file=%08X, mem=%08X ",
-//addr + i + memory_base, expected, word); fflush (stdout);
-            if (verify_only || ! target_flash_rewrite (mc,
-                memory_base + addr + i, expected)) {
-                printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
-                    addr + i + memory_base, expected, word);
-                exit (1);
-//              break;
-            }
-            printf ("%%\b");
-            fflush (stdout);
-            word = target_read_word (mc, memory_base + addr + i);
+        if (word != expected) {
+            printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
+                addr + i + memory_base, expected, word);
+            exit (1);
         }
     }
-#endif
 }
 
 void do_program (char *filename)
 {
-#if 0
     unsigned addr;
     int len;
     void *t0;
@@ -357,12 +337,10 @@ void do_program (char *filename)
     printf (_("# done\n"));
     printf (_("Rate: %ld bytes per second\n"),
         memory_len * 1000L / mseconds_elapsed (t0));
-#endif
 }
 
 void do_write ()
 {
-#if 0
     unsigned addr;
     int len;
     void *t0;
@@ -403,12 +381,10 @@ void do_write ()
     printf (_("# done\n"));
     printf (_("Rate: %ld bytes per second\n"),
         memory_len * 1000L / mseconds_elapsed (t0));
-#endif
 }
 
 void do_read (char *filename)
 {
-#if 1
     FILE *fd;
     unsigned len, addr, data [BLOCKSZ/4];
     void *t0;
@@ -457,7 +433,6 @@ void do_read (char *filename)
     printf (_("Rate: %ld bytes per second\n"),
         memory_len * 1000L / mseconds_elapsed (t0));
     fclose (fd);
-#endif
 }
 
 /*

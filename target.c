@@ -238,20 +238,19 @@ void target_read_block (target_t *t, unsigned addr,
 //fprintf (stderr, "    done (addr = %x)\n", addr);
 }
 
-#if 0
 void target_write_block (target_t *t, unsigned addr,
     unsigned nwords, unsigned *data)
 {
     unsigned i;
 
-    target_write_word (t, addr, *data++);
-    for (i=1; i<nwords; i++)
-        target_write_next (t, addr += 4, *data++);
+    for (i=0; i<nwords; i++, addr+=4)
+        target_write_word (t, addr, *data++);
 }
 
-static void target_program_block (target_t *t, unsigned addr,
-    unsigned base, unsigned nwords, unsigned *data)
+void target_program_block (target_t *t, unsigned addr,
+    unsigned nwords, unsigned *data)
 {
+#if 0
     while (nwords-- > 0) {
         target_write_nwords (t, 4,
             base + t->flash_addr_odd, t->flash_cmd_aa,
@@ -260,5 +259,5 @@ static void target_program_block (target_t *t, unsigned addr,
             addr, *data++);
         addr += 4;
     }
-}
 #endif
+}
