@@ -83,3 +83,8 @@
  * Fields of the MEM_AP_CFG register.
  */
 #define CFG_BIGENDIAN		1       /* Big-endian memory access. */
+
+/*
+ * Cortex-M3 registers.
+ */
+#define CPUID                   0xE000ED00

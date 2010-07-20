@@ -412,7 +412,7 @@ void do_write ()
 
 void do_read (char *filename)
 {
-#if 0
+#if 1
     FILE *fd;
     unsigned len, addr, data [BLOCKSZ/4];
     void *t0;

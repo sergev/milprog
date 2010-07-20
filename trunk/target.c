@@ -29,7 +29,7 @@
 struct _target_t {
     adapter_t   *adapter;
     const char  *cpu_name;
-    unsigned    idcode;
+    unsigned    cpuid;
     unsigned    is_running;
     unsigned    flash_addr;
     unsigned    flash_bytes;
@@ -54,6 +54,133 @@ void mdelay (unsigned msec)
     usleep (msec * 1000);
 }
 #endif
+
+unsigned target_read_word (target_t *t, unsigned address)
+{
+    unsigned value;
+
+    t->adapter->memap_write (t->adapter, MEM_AP_TAR, address);
+    value = t->adapter->memap_read (t->adapter, MEM_AP_DRW);
+    if (debug_level > 1) {
+        fprintf (stderr, "word read %08x from %08x\n",
+            value, address);
+    }
+    return value;
+}
+
+/*
+ * Устанавливаем соединение с адаптером JTAG.
+ * Не надо сбрасывать процессор!
+ * Программа должна продолжать выполнение.
+ */
+target_t *target_open (int need_reset)
+{
+    target_t *t;
+
+    t = calloc (1, sizeof (target_t));
+    if (! t) {
+        fprintf (stderr, _("Out of memory\n"));
+        exit (-1);
+    }
+    t->cpu_name = "Unknown";
+
+    /* Ищем адаптер JTAG: MPSSE. */
+    t->adapter = adapter_open_mpsse ();
+    if (! t->adapter) {
+        fprintf (stderr, _("No JTAG adapter found.\n"));
+        exit (-1);
+    }
+
+    /* Проверяем идентификатор процессора. */
+    unsigned idcode = t->adapter->get_idcode (t->adapter);
+    if (debug_level)
+        fprintf (stderr, "idcode %08X\n", idcode);
+
+    /* Проверяем идентификатор ARM Debug Interface v5. */
+    if (idcode != 0x4ba00477) {
+        /* Device not detected. */
+        if (idcode == 0xffffffff || idcode == 0)
+            fprintf (stderr, _("No response from device -- check power is on!\n"));
+        else
+            fprintf (stderr, _("No response from device -- unknown idcode 0x%08X!\n"),
+                idcode);
+        t->adapter->close (t->adapter);
+        exit (1);
+    }
+
+    /* Включение питания блока отладки, сброс залипающих ошибок. */
+    t->adapter->dp_write (t->adapter, DP_CTRL_STAT,
+	CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
+        SSTICKYORUN | SSTICKYCMP | SSTICKYERR);
+
+    /* Проверка регистра MEM-AP IDR. */
+    unsigned apid = t->adapter->memap_read (t->adapter, MEM_AP_IDR);
+    if (apid != 0x24770011) {
+        fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
+                apid);
+        t->adapter->close (t->adapter);
+        exit (1);
+    }
+
+    /* Проверка регистра MEM-AP CFG. */
+    unsigned cfg = t->adapter->memap_read (t->adapter, MEM_AP_CFG);
+    if (cfg & CFG_BIGENDIAN) {
+        fprintf (stderr, _("Big endian memory type not supported, CFG=%08x.\n"),
+                cfg);
+        t->adapter->close (t->adapter);
+        exit (1);
+    }
+
+    /* Установка режимов блока MEM-AP: регистр CSW. */
+    t->adapter->memap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
+        CSW_32BIT | CSW_ADDRINC_SINGLE);
+    if (debug_level) {
+        unsigned csw = t->adapter->memap_read (t->adapter, MEM_AP_CSW);
+        fprintf (stderr, "MEM-AP CSW = %08x\n", csw);
+    }
+
+    /* Проверяем идентификатор процессора. */
+    t->cpuid = target_read_word (t, CPUID);
+    switch (t->cpuid) {
+    case 0x412fc230:    /* Миландр 1986ВМ91Т */
+        t->cpu_name = "Cortex M3";
+        t->flash_addr = 0x08000000;
+        t->flash_bytes = 128*1024;
+        break;
+    default:
+        /* Device not detected. */
+        fprintf (stderr, _("Unknown CPUID=%08x.\n"), t->cpuid);
+        t->adapter->close (t->adapter);
+        exit (1);
+    }
+    t->is_running = 1;
+    return t;
+}
+
+/*
+ * Close the device.
+ */
+void target_close (target_t *t)
+{
+    if (! t->is_running)
+        target_resume (t);
+    t->adapter->close (t->adapter);
+}
+
+const char *target_cpu_name (target_t *t)
+{
+    return t->cpu_name;
+}
+
+unsigned target_idcode (target_t *t)
+{
+    return t->cpuid;
+}
+
+unsigned target_flash_bytes (target_t *t)
+{
+    return t->flash_bytes;
+}
 
 #if 0
 /*
@@ -102,49 +229,6 @@ void target_write_word (target_t *t, unsigned phys_addr, unsigned data)
     target_write_next (t, phys_addr, data);
 }
 
-/*
- * Чтение слова из памяти.
- */
-void target_read_start (target_t *t)
-{
-    /* Allow memory access */
-    unsigned oscr_new = t->adapter->oscr | OSCR_SlctMEM | OSCR_RO;
-    if (oscr_new != t->adapter->oscr) {
-        t->adapter->oscr = oscr_new;
-        t->adapter->memap_write (t->adapter, t->adapter->oscr, OnCD_OSCR);
-    }
-}
-
-unsigned target_read_next (target_t *t, unsigned phys_addr)
-{
-    unsigned count, data;
-
-    t->adapter->memap_write (t->adapter, phys_addr, OnCD_OMAR);
-    t->adapter->memap_write (t->adapter, 0, OnCD_MEM);
-
-/* Адаптер Elvees USB-JTAG не работает, если не делать проверку RDYm. */
-//    if (t->is_running) {
-        /* Если процессор запущен, обращение к памяти произойдёт не сразу.
-         * Надо ждать появления бита RDYm в регистре OSCR. */
-        for (count = 100; count != 0; count--) {
-            t->adapter->oscr = t->adapter->memap_read (t->adapter, OnCD_OSCR);
-            if (t->adapter->oscr & OSCR_RDYm)
-                break;
-            mdelay (1);
-        }
-        if (count == 0) {
-            fprintf (stderr, _("Timeout reading memory, aborted. OSCR=%#x\n"),
-                t->adapter->oscr);
-            exit (1);
-        }
-//    }
-    data = t->adapter->memap_read (t->adapter, OnCD_OMDR);
-
-    if (debug_level)
-        fprintf (stderr, _("read %08x from     %08x\n"), data, phys_addr);
-    return data;
-}
-
 void target_write_nwords (target_t *t, unsigned nwords, ...)
 {
     va_list args;
@@ -168,125 +252,6 @@ void target_write_nwords (target_t *t, unsigned nwords, ...)
 }
 #endif
 
-unsigned target_read_word (target_t *t, unsigned address)
-{
-    unsigned value;
-
-    t->adapter->memap_write (t->adapter, MEM_AP_TAR, address & 0xFFFFFFF0);
-    value = t->adapter->memap_read (t->adapter, MEM_AP_DRW | (address & 0xC));
-    if (debug_level > 1) {
-        fprintf (stderr, "target read %08x from %08x\n",
-            value, address);
-    }
-    return value;
-}
-
-/*
- * Устанавливаем соединение с адаптером JTAG.
- * Не надо сбрасывать процессор!
- * Программа должна продолжать выполнение.
- */
-target_t *target_open (int need_reset)
-{
-    target_t *t;
-
-    t = calloc (1, sizeof (target_t));
-    if (! t) {
-        fprintf (stderr, _("Out of memory\n"));
-        exit (-1);
-    }
-    t->cpu_name = "Unknown";
-
-    /* Ищем адаптер JTAG: MPSSE. */
-    t->adapter = adapter_open_mpsse ();
-    if (! t->adapter) {
-        fprintf (stderr, _("No JTAG adapter found.\n"));
-        exit (-1);
-    }
-
-    /* Проверяем идентификатор процессора. */
-    t->idcode = t->adapter->get_idcode (t->adapter);
-    if (debug_level)
-        fprintf (stderr, "idcode %08X\n", t->idcode);
-
-    /* Проверяем идентификатор ARM Cortex M3. */
-    if (t->idcode != 0x4ba00477) {
-        /* Device not detected. */
-        if (t->idcode == 0xffffffff || t->idcode == 0)
-            fprintf (stderr, _("No response from device -- check power is on!\n"));
-        else
-            fprintf (stderr, _("No response from device -- unknown idcode 0x%08X!\n"),
-                t->idcode);
-        t->adapter->close (t->adapter);
-        exit (1);
-    }
-
-    /* Включение питания блока отладки, сброс залипающих ошибок. */
-    t->adapter->dp_write (t->adapter, DP_CTRL_STAT,
-	CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
-        SSTICKYORUN | SSTICKYCMP | SSTICKYERR);
-
-    /* Проверка регистра MEM-AP IDR. */
-    unsigned apid = t->adapter->memap_read (t->adapter, MEM_AP_IDR);
-    if (apid != 0x24770011) {
-        /* Device not detected. */
-        fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
-                apid);
-        t->adapter->close (t->adapter);
-        exit (1);
-    }
-
-    /* Проверка регистра MEM-AP CFG. */
-    unsigned cfg = t->adapter->memap_read (t->adapter, MEM_AP_CFG);
-    if (cfg & CFG_BIGENDIAN) {
-        /* Device not detected. */
-        fprintf (stderr, _("Big endian memory type not supported, CFG=%08x.\n"),
-                cfg);
-        t->adapter->close (t->adapter);
-        exit (1);
-    }
-
-    /* Установка режимов блока MEM-AP: регистр CSW. */
-    t->adapter->memap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
-        CSW_32BIT | CSW_ADDRINC_SINGLE);
-    if (debug_level) {
-        unsigned csw = t->adapter->memap_read (t->adapter, MEM_AP_CSW);
-        fprintf (stderr, "MEM-AP CSW = %08x\n", csw);
-    }
-
-    t->cpu_name = "Cortex M3";
-    t->flash_addr = 0x08000000;
-    t->flash_bytes = 128*1024;
-    t->is_running = 1;
-    return t;
-}
-
-/*
- * Close the device.
- */
-void target_close (target_t *t)
-{
-    if (! t->is_running)
-        target_resume (t);
-    t->adapter->close (t->adapter);
-}
-
-const char *target_cpu_name (target_t *t)
-{
-    return t->cpu_name;
-}
-
-unsigned target_idcode (target_t *t)
-{
-    return t->idcode;
-}
-
-unsigned target_flash_bytes (target_t *t)
-{
-    return t->flash_bytes;
-}
-
-#if 0
 /*
  * Стирание всей flash-памяти.
  */
@@ -309,30 +274,25 @@ int target_erase (target_t *t, unsigned addr)
     return 1;
 }
 
+/*
+ * Чтение данных из памяти.
+ */
 void target_read_block (target_t *t, unsigned addr,
     unsigned nwords, unsigned *data)
 {
     unsigned i;
 
 //fprintf (stderr, "target_read_block (addr = %x, nwords = %d)\n", addr, nwords);
-    if (t->adapter->read_block) {
-        while (nwords > 0) {
-            unsigned n = nwords;
-            if (n > t->adapter->block_words)
-                n = t->adapter->block_words;
-            t->adapter->read_block (t->adapter, n, addr, data);
-            data += n;
-            addr += n*4;
-            nwords -= n;
-        }
-        return;
+    for (i=0; i<nwords; i++, addr+=4, data++) {
+        t->adapter->memap_write (t->adapter, MEM_AP_TAR, addr);
+        *data = t->adapter->memap_read (t->adapter, MEM_AP_DRW);
+        if (debug_level)
+            fprintf (stderr, _("block read %08x from %08x\n"), *data, addr);
     }
-    target_read_start (t);
-    for (i=0; i<nwords; i++, addr+=4)
-        *data++ = target_read_next (t, addr);
 //fprintf (stderr, "    done (addr = %x)\n", addr);
 }
 
+#if 0
 void target_write_block (target_t *t, unsigned addr,
     unsigned nwords, unsigned *data)
 {
