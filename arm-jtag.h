@@ -88,3 +88,35 @@
  * Cortex-M3 registers.
  */
 #define CPUID                   0xE000ED00
+
+/* Debug Control Block */
+#define DCB_DHCSR               0xE000EDF0
+#define DCB_DCRSR               0xE000EDF4
+#define DCB_DCRDR               0xE000EDF8
+#define DCB_DEMCR               0xE000EDFC
+
+#define DCRSR_WnR               (1 << 16)
+
+/* DCB_DHCSR bit and field definitions */
+#define DBGKEY                  (0xA05F << 16)
+#define C_DEBUGEN               (1 << 0)
+#define C_HALT                  (1 << 1)
+#define C_STEP                  (1 << 2)
+#define C_MASKINTS              (1 << 3)
+#define S_REGRDY                (1 << 16)
+#define S_HALT                  (1 << 17)
+#define S_SLEEP                 (1 << 18)
+#define S_LOCKUP                (1 << 19)
+#define S_RETIRE_ST             (1 << 24)
+#define S_RESET_ST              (1 << 25)
+
+/* DCB_DEMCR bit and field definitions */
+#define	TRCENA			(1 << 24)
+#define	VC_HARDERR		(1 << 10)
+#define	VC_INTERR		(1 << 9)
+#define	VC_BUSERR		(1 << 8)
+#define	VC_STATERR		(1 << 7)
+#define	VC_CHKERR		(1 << 6)
+#define	VC_NOCPERR		(1 << 5)
+#define	VC_MMERR		(1 << 4)
+#define	VC_CORERESET            (1 << 0)

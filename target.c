@@ -69,6 +69,18 @@ unsigned target_read_word (target_t *t, unsigned address)
 }
 
 /*
+ * Запись слова в память.
+ */
+void target_write_word (target_t *t, unsigned address, unsigned data)
+{
+    if (debug_level > 1) {
+        fprintf (stderr, _("word write %08x to %08x\n"), data, address);
+    }
+    t->adapter->memap_write (t->adapter, MEM_AP_TAR, address);
+    t->adapter->memap_write (t->adapter, MEM_AP_DRW, data);
+}
+
+/*
  * Устанавливаем соединение с адаптером JTAG.
  * Не надо сбрасывать процессор!
  * Программа должна продолжать выполнение.
@@ -139,6 +151,11 @@ target_t *target_open (int need_reset)
         fprintf (stderr, "MEM-AP CSW = %08x\n", csw);
     }
 
+    /* Останавливаем процессор. */
+    unsigned dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFF;
+    dhcsr |= DBGKEY | C_DEBUGEN | C_HALT;
+    target_write_word (t, DCB_DHCSR, dhcsr);
+
     /* Проверяем идентификатор процессора. */
     t->cpuid = target_read_word (t, CPUID);
     switch (t->cpuid) {
@@ -162,8 +179,7 @@ target_t *target_open (int need_reset)
  */
 void target_close (target_t *t)
 {
-    if (! t->is_running)
-        target_resume (t);
+    /* TODO: resume execution */
     t->adapter->close (t->adapter);
 }
 
@@ -181,76 +197,6 @@ unsigned target_flash_bytes (target_t *t)
 {
     return t->flash_bytes;
 }
-
-#if 0
-/*
- * Запись слова в память.
- */
-void target_write_next (target_t *t, unsigned phys_addr, unsigned data)
-{
-    unsigned count;
-
-    if (debug_level)
-        fprintf (stderr, _("write %08x to %08x\n"), data, phys_addr);
-
-    t->adapter->memap_write (t->adapter, phys_addr, OnCD_OMAR);
-    t->adapter->memap_write (t->adapter, data, OnCD_OMDR);
-    t->adapter->memap_write (t->adapter, 0, OnCD_MEM);
-
-    if (t->is_running) {
-        /* Если процессор запущен, обращение к памяти произойдёт не сразу.
-         * Надо ждать появления бита RDYm в регистре OSCR. */
-        for (count = 100; count != 0; count--) {
-            t->adapter->oscr = t->adapter->memap_read (t->adapter, OnCD_OSCR);
-            if (t->adapter->oscr & OSCR_RDYm)
-                break;
-            mdelay (1);
-        }
-        if (count == 0) {
-            fprintf (stderr, _("Timeout writing memory, aborted. OSCR=%#x\n"),
-                t->adapter->oscr);
-            exit (1);
-        }
-    }
-}
-
-void target_write_word (target_t *t, unsigned phys_addr, unsigned data)
-{
-    if (debug_level)
-        fprintf (stderr, _("write word %08x to %08x\n"), data, phys_addr);
-
-    /* Allow memory access */
-    unsigned oscr_new = (t->adapter->oscr & ~OSCR_RO) | OSCR_SlctMEM;
-    if (oscr_new != t->adapter->oscr) {
-        t->adapter->oscr = oscr_new;
-        t->adapter->memap_write (t->adapter, t->adapter->oscr, OnCD_OSCR);
-    }
-
-    target_write_next (t, phys_addr, data);
-}
-
-void target_write_nwords (target_t *t, unsigned nwords, ...)
-{
-    va_list args;
-    unsigned addr, data, i;
-
-    va_start (args, nwords);
-    if (t->adapter->write_nwords) {
-        t->adapter->write_nwords (t->adapter, nwords, args);
-        va_end (args);
-        return;
-    }
-    addr = va_arg (args, unsigned);
-    data = va_arg (args, unsigned);
-    target_write_word (t, addr, data);
-    for (i=1; i<nwords; i++) {
-        addr = va_arg (args, unsigned);
-        data = va_arg (args, unsigned);
-        target_write_next (t, addr, data);
-    }
-    va_end (args);
-}
-#endif
 
 /*
  * Стирание всей flash-памяти.
@@ -425,83 +371,5 @@ void target_program_block (target_t *t, unsigned addr,
 {
 //fprintf (stderr, "target_program_block (addr = %x, nwords = %d), flash_width = %d, base = %x\n", addr, nwords, t->flash_width, t->flash_addr);
     target_program_block32 (t, addr, nwords, data);
-}
-#endif
-
-void target_stop (target_t *t)
-{
-    if (! t->is_running)
-        return;
-    t->adapter->stop_cpu (t->adapter);
-    t->is_running = 0;
-
-//    unsigned cfg = t->adapter->memap_read (t->adapter, MEM_AP_CFG);
-//    unsigned base = t->adapter->memap_read (t->adapter, MEM_AP_BASE);
-//    unsigned idr = t->adapter->memap_read (t->adapter, MEM_AP_IDR);
-//    printf ("IDR = %08X, BASE = %08X, CFG = %08X\n", idr, base, cfg);
-}
-
-void target_step (target_t *t)
-{
-#if 0
-    if (t->is_running)
-        return;
-    target_restore_state (t);
-    if (t->adapter->step_cpu)
-        t->adapter->step_cpu (t->adapter);
-    else {
-        t->adapter->memap_write (t->adapter,
-            0, OnCD_GO | IRd_FLUSH_PIPE | IRd_STEP_1CLK);
-    }
-    target_save_state (t);
-#endif
-fprintf (stderr, "target_step() not implemented yet\n");
-}
-
-void target_resume (target_t *t)
-{
-#if 0
-    if (t->is_running)
-        return;
-    target_restore_state (t);
-    t->is_running = 1;
-    if (t->adapter->run_cpu)
-        t->adapter->run_cpu (t->adapter);
-    else {
-        t->adapter->memap_write (t->adapter,
-            0, OnCD_GO | IRd_RESUME | IRd_FLUSH_PIPE);
-    }
-#endif
-fprintf (stderr, "target_resume() not implemented yet\n");
-}
-
-void target_run (target_t *t, unsigned addr)
-{
-#if 0
-    if (t->is_running)
-        return;
-
-    /* Изменение адреса следующей команды реализуется
-     * аналогично входу в отработчик исключения. */
-    t->exception = addr;
-
-    target_restore_state (t);
-    t->is_running = 1;
-    if (t->adapter->run_cpu)
-        t->adapter->run_cpu (t->adapter);
-    else {
-        t->adapter->memap_write (t->adapter,
-            0, OnCD_GO | IRd_RESUME | IRd_FLUSH_PIPE);
-    }
-#endif
-}
-
-#if 0
-void target_restart (target_t *t)
-{
-    if (! t->is_running)
-        target_restore_state (t);
-    t->adapter->reset_cpu (t->adapter);
-    t->is_running = 1;
 }
 #endif

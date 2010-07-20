@@ -200,7 +200,6 @@ void quit (void)
     if (target != 0) {
         if (start_addr != DEFAULT_ADDR)
             printf (_("Start: %08X\n"), start_addr);
-        target_run (target, start_addr);
         target_close (target);
         free (target);
         target = 0;
@@ -222,7 +221,6 @@ void do_probe ()
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
-    target_stop (target);
     printf (_("Processor: %s (id %08X)\n"), target_cpu_name (target),
         target_idcode (target));
     printf (_("Flash memory: %d kbytes\n"), target_flash_bytes (target) / 1024);
@@ -327,7 +325,6 @@ void do_program (char *filename)
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
-    target_stop (target);
     printf (_("Processor: %s\n"), target_cpu_name (target));
     printf (_("Flash memory: %d kbytes\n"), target_flash_bytes (target) / 1024);
 
@@ -380,7 +377,6 @@ void do_write ()
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
-    target_stop (target);
     printf (_("Processor: %s\n"), target_cpu_name (target));
 
     for (progress_step=1; ; progress_step<<=1) {
@@ -432,7 +428,6 @@ void do_read (char *filename)
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
-    target_stop (target);
     for (progress_step=1; ; progress_step<<=1) {
         len = 1 + memory_len / progress_step / BLOCKSZ;
         if (len < 64)

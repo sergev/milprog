@@ -513,15 +513,6 @@ static unsigned mpsse_memap_read (adapter_t *adapter, int reg)
 }
 
 /*
- * Перевод кристалла в режим отладки путём манипуляций
- * регистрами данных JTAG.
- */
-static void mpsse_stop_cpu (adapter_t *adapter)
-{
-/*TODO*/
-}
-
-/*
  * Аппаратный сброс процессора.
  */
 static void mpsse_reset_cpu (adapter_t *adapter)
@@ -635,7 +626,6 @@ failed: usb_release_interface (a->usbdev, 0);
     a->adapter.name = "FT2232";
     a->adapter.close = mpsse_close;
     a->adapter.get_idcode = mpsse_get_idcode;
-    a->adapter.stop_cpu = mpsse_stop_cpu;
     a->adapter.reset_cpu = mpsse_reset_cpu;
     a->adapter.dp_read = mpsse_dp_read;
     a->adapter.dp_write = mpsse_dp_write;
