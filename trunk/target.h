@@ -50,12 +50,6 @@ void target_write_byte (target_t *t, unsigned addr, unsigned data);
 void target_write_2bytes (target_t *t, unsigned addr1, unsigned data1,
 	unsigned addr2, unsigned data2);
 
-void target_stop (target_t *t);
-void target_step (target_t *t);
-void target_resume (target_t *t);
-void target_run (target_t *t, unsigned addr);
-void target_restart (target_t *t);
-
 unsigned target_read_register (target_t *t, unsigned regno);
 void target_write_register (target_t *t, unsigned regno, unsigned val);
 

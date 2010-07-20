@@ -28,7 +28,6 @@ struct _adapter_t {
      */
     void (*close) (adapter_t *a);
     unsigned (*get_idcode) (adapter_t *a);
-    void (*stop_cpu) (adapter_t *a);
     void (*reset_cpu) (adapter_t *a);
     void (*dp_write) (adapter_t *a, int reg, unsigned val);
     unsigned (*dp_read) (adapter_t *a, int reg);
