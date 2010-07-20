@@ -8,7 +8,8 @@
 [http://sourceforge.net/apps/trac/libusb-win32/wiki Windows].
 
 = Блок отладки =
-Микроконтроллеры Миландр 1986ВМ9x имеют ядро с архитектурой ARM Cortex-M3.
+Микроконтроллеры Миландр 1986ВМ9x имеют ядро с архитектурой
+[http://infocenter.arm.com/help/topic/com.arm.doc.subset.cortexm.m3/index.html#cortexm3 ARM Cortex-M3].
 Порт JTAG оснащён блоком отладки, реализующим протокол
 [http://infocenter.arm.com/help/topic/com.arm.doc.ihi0031a/index.html ARM Debug Interface v5].
 
