@@ -1,0 +1,22 @@
+#summary JTAG interface (Russian).
+
+= Адаптер USB-JTAG =
+[http://milprog.googlecode.com/svn/wiki/images/arm-usb-tiny.jpg]
+
+Адаптер [http://www.olimex.com/dev/arm-usb-tiny.html Olimex ARM-USB-Tiny] построен на основе микросхемы FTDI FT2232D. Он позволяет через интерфейс USB производить обмен данными с портом JTAG. В качестве программного интерфейса используется библиотека
+[http://www.libusb.org/ libusb-0.1]. Имеются версии linusb для Linux, Mac OS X и
+[http://sourceforge.net/apps/trac/libusb-win32/wiki Windows].
+
+= Блок отладки =
+Микроконтроллеры Миландр 1986ВМ9x имеют ядро с архитектурой ARM Cortex-M3.
+Порт JTAG оснащён блоком отладки, реализующим протокол
+[http://infocenter.arm.com/help/topic/com.arm.doc.ihi0031a/index.html ARM Debug Interface v5].
+
+Схема состояний машины TAP:
+[http://milprog.googlecode.com/svn/wiki/images/tap-state-machine.png]
+
+Доступ к регистрам уровня DP (debug port):
+[http://milprog.googlecode.com/svn/wiki/images/arm-debug-access-port.png]
+
+Доступ к регистрам уровня MEM-AP (memory access port):
+[http://milprog.googlecode.com/svn/wiki/images/arm-memory-access-port.png]
