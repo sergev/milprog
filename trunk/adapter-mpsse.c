@@ -449,7 +449,7 @@ static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
 /*
  * Запись регистра MEM-AP.
  */
-static void mpsse_memap_write (adapter_t *adapter, int reg, unsigned value)
+static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
 
@@ -479,7 +479,7 @@ static void mpsse_memap_write (adapter_t *adapter, int reg, unsigned value)
 /*
  * Чтение регистра MEM-AP.
  */
-static unsigned mpsse_memap_read (adapter_t *adapter, int reg)
+static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
     unsigned long long reply;
@@ -629,7 +629,7 @@ failed: usb_release_interface (a->usbdev, 0);
     a->adapter.reset_cpu = mpsse_reset_cpu;
     a->adapter.dp_read = mpsse_dp_read;
     a->adapter.dp_write = mpsse_dp_write;
-    a->adapter.memap_read = mpsse_memap_read;
-    a->adapter.memap_write = mpsse_memap_write;
+    a->adapter.mem_ap_read = mpsse_mem_ap_read;
+    a->adapter.mem_ap_write = mpsse_mem_ap_write;
     return &a->adapter;
 }

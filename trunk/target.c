@@ -59,8 +59,8 @@ unsigned target_read_word (target_t *t, unsigned address)
 {
     unsigned value;
 
-    t->adapter->memap_write (t->adapter, MEM_AP_TAR, address);
-    value = t->adapter->memap_read (t->adapter, MEM_AP_DRW);
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, address);
+    value = t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
     if (debug_level > 1) {
         fprintf (stderr, "word read %08x from %08x\n",
             value, address);
@@ -76,8 +76,8 @@ void target_write_word (target_t *t, unsigned address, unsigned data)
     if (debug_level > 1) {
         fprintf (stderr, _("word write %08x to %08x\n"), data, address);
     }
-    t->adapter->memap_write (t->adapter, MEM_AP_TAR, address);
-    t->adapter->memap_write (t->adapter, MEM_AP_DRW, data);
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, address);
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_DRW, data);
 }
 
 /*
@@ -126,7 +126,7 @@ target_t *target_open (int need_reset)
         SSTICKYORUN | SSTICKYCMP | SSTICKYERR);
 
     /* Проверка регистра MEM-AP IDR. */
-    unsigned apid = t->adapter->memap_read (t->adapter, MEM_AP_IDR);
+    unsigned apid = t->adapter->mem_ap_read (t->adapter, MEM_AP_IDR);
     if (apid != 0x24770011) {
         fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
                 apid);
@@ -135,7 +135,7 @@ target_t *target_open (int need_reset)
     }
 
     /* Проверка регистра MEM-AP CFG. */
-    unsigned cfg = t->adapter->memap_read (t->adapter, MEM_AP_CFG);
+    unsigned cfg = t->adapter->mem_ap_read (t->adapter, MEM_AP_CFG);
     if (cfg & CFG_BIGENDIAN) {
         fprintf (stderr, _("Big endian memory type not supported, CFG=%08x.\n"),
                 cfg);
@@ -144,10 +144,10 @@ target_t *target_open (int need_reset)
     }
 
     /* Установка режимов блока MEM-AP: регистр CSW. */
-    t->adapter->memap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
         CSW_32BIT | CSW_ADDRINC_SINGLE);
     if (debug_level) {
-        unsigned csw = t->adapter->memap_read (t->adapter, MEM_AP_CSW);
+        unsigned csw = t->adapter->mem_ap_read (t->adapter, MEM_AP_CSW);
         fprintf (stderr, "MEM-AP CSW = %08x\n", csw);
     }
 
@@ -230,8 +230,8 @@ void target_read_block (target_t *t, unsigned addr,
 
 //fprintf (stderr, "target_read_block (addr = %x, nwords = %d)\n", addr, nwords);
     for (i=0; i<nwords; i++, addr+=4, data++) {
-        t->adapter->memap_write (t->adapter, MEM_AP_TAR, addr);
-        *data = t->adapter->memap_read (t->adapter, MEM_AP_DRW);
+        t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, addr);
+        *data = t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
         if (debug_level)
             fprintf (stderr, _("block read %08x from %08x\n"), *data, addr);
     }
@@ -244,41 +244,14 @@ void target_write_block (target_t *t, unsigned addr,
 {
     unsigned i;
 
-    if (t->adapter->write_block) {
-        while (nwords > 0) {
-            unsigned n = nwords;
-            if (n > t->adapter->block_words)
-                n = t->adapter->block_words;
-            t->adapter->write_block (t->adapter, n, addr, data);
-            data += n;
-            addr += n*4;
-            nwords -= n;
-        }
-        return;
-    }
     target_write_word (t, addr, *data++);
     for (i=1; i<nwords; i++)
         target_write_next (t, addr += 4, *data++);
 }
 
-static void target_program_block32 (target_t *t, unsigned addr,
+static void target_program_block (target_t *t, unsigned addr,
     unsigned base, unsigned nwords, unsigned *data)
 {
-    if (t->adapter->program_block32) {
-        while (nwords > 0) {
-            unsigned n = nwords;
-            if (n > t->adapter->program_block_words)
-                n = t->adapter->program_block_words;
-            t->adapter->program_block32 (t->adapter,
-                n, base, addr, data,
-                t->flash_addr_odd, t->flash_addr_even,
-                t->flash_cmd_aa, t->flash_cmd_55, t->flash_cmd_a0);
-            data += n;
-            addr += n*4;
-            nwords -= n;
-        }
-        return;
-    }
     while (nwords-- > 0) {
         target_write_nwords (t, 4,
             base + t->flash_addr_odd, t->flash_cmd_aa,
@@ -287,89 +260,5 @@ static void target_program_block32 (target_t *t, unsigned addr,
             addr, *data++);
         addr += 4;
     }
-}
-
-static void target_program_block32_atmel (target_t *t, unsigned addr,
-    unsigned base, unsigned nwords, unsigned *data)
-{
-    if (t->adapter->program_block32_protect) {
-        while (nwords > 0) {
-            t->adapter->program_block32_unprotect (t->adapter,
-                128, base, addr, data,
-                t->flash_addr_odd, t->flash_addr_even,
-                t->flash_cmd_aa, t->flash_cmd_55, t->flash_cmd_a0);
-            t->adapter->program_block32_protect (t->adapter,
-                128, base, addr, data,
-                t->flash_addr_odd, t->flash_addr_even,
-                t->flash_cmd_aa, t->flash_cmd_55, t->flash_cmd_a0);
-            if (nwords <= 128)
-                break;
-            data += 128;
-            addr += 128*4;
-            nwords -= 128;
-        }
-        return;
-    }
-    while (nwords > 0) {
-        /* Unprotect. */
-        target_write_nwords (t, 6,
-            base + t->flash_addr_odd, t->flash_cmd_aa,
-            base + t->flash_addr_even, t->flash_cmd_55,
-            base + t->flash_addr_odd, 0x80808080,
-            base + t->flash_addr_odd, t->flash_cmd_aa,
-            base + t->flash_addr_even, t->flash_cmd_55,
-            base + t->flash_addr_odd, 0x20202020);
-        target_write_block (t, addr, 128, data);
-
-        /* Protect. */
-        target_write_nwords (t, 3,
-            base + t->flash_addr_odd, t->flash_cmd_aa,
-            base + t->flash_addr_even, t->flash_cmd_55,
-            base + t->flash_addr_odd, t->flash_cmd_a0);
-        target_write_block (t, addr, 128, data);
-
-        data += 128;
-        addr += 128*4;
-        nwords -= 128;
-    }
-}
-
-static void target_program_block64 (target_t *t, unsigned addr,
-    unsigned base, unsigned nwords, unsigned *data)
-{
-    if (t->adapter->program_block64) {
-        while (nwords > 0) {
-            unsigned n = nwords;
-            if (n > t->adapter->program_block_words)
-                n = t->adapter->program_block_words;
-            t->adapter->program_block64 (t->adapter,
-                n, base, addr, data,
-                t->flash_addr_odd, t->flash_addr_even,
-                t->flash_cmd_aa, t->flash_cmd_55, t->flash_cmd_a0);
-            data += n;
-            addr += n*4;
-            nwords -= n;
-        }
-        return;
-    }
-    if (addr & 4) {
-        /* Старшая половина 64-разрядной шины. */
-        base += 4;
-    }
-    while (nwords-- > 0) {
-        target_write_nwords (t, 4,
-            base + t->flash_addr_odd, t->flash_cmd_aa,
-            base + t->flash_addr_even, t->flash_cmd_55,
-            base + t->flash_addr_odd, t->flash_cmd_a0,
-            addr, *data++);
-        addr += 4;
-    }
-}
-
-void target_program_block (target_t *t, unsigned addr,
-    unsigned nwords, unsigned *data)
-{
-//fprintf (stderr, "target_program_block (addr = %x, nwords = %d), flash_width = %d, base = %x\n", addr, nwords, t->flash_width, t->flash_addr);
-    target_program_block32 (t, addr, nwords, data);
 }
 #endif
