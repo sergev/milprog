@@ -1,0 +1,6 @@
+= milprog =
+MILPROG is a utility for loading data into a flash memory of Milandr ARM microcontrollers.
+
+Утилита MILPROG предназначена для записи программного обеспечения в Flash-память микроконтроллеров Миландр с архитектурой ARM (1986ВМ9x).
+
+[milprog_ru Подробнее об утилите MILPROG >>>]

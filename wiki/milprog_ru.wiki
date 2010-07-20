@@ -1,0 +1,20 @@
+#summary MILPROG home page (Russian).
+
+= Утилита MILPROG =
+Утилита MILPROG предназначена для записи программного обеспечения в Flash-память микроконтроллеров Миландр с архитектурой ARM
+([http://milandr.ru/index.php?mact=Products,cntnt01,details,0&cntnt01productid=13&cntnt01returnid=68 1986ВМ91Т],
+[http://milandr.ru/index.php?mact=Products,cntnt01,details,0&cntnt01productid=57&cntnt01returnid=68 1986ВМ92УТ],
+[http://milandr.ru/index.php?mact=Products,cntnt01,details,0&cntnt01productid=58&cntnt01returnid=68 1986ВМ93У]).
+В качестве программатора используется [http://www.olimex.com/dev/arm-usb-tiny.html адаптер Olimex ARM-USB-Tiny].
+
+[http://milprog.googlecode.com/svn/wiki/images/arm-usb-tiny.jpg]
+
+= Вызов =
+
+(TODO)
+
+= Исходные тексты =
+Исходные тексты распространяются на условиях лицензии GPL. Их можно скачать через SVN командой:
+{{{
+svn checkout http://milprog.googlecode.com/svn/trunk/ milprog
+}}}
