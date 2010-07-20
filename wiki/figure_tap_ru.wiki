@@ -1,0 +1,5 @@
+#summary TAP state machine (Russian).
+
+= Схема состояний машины TAP =
+
+[http://milprog.googlecode.com/svn/wiki/images/tap-state-machine.png]

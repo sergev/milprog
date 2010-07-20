@@ -12,11 +12,31 @@
 Порт JTAG оснащён блоком отладки, реализующим протокол
 [http://infocenter.arm.com/help/topic/com.arm.doc.ihi0031a/index.html ARM Debug Interface v5].
 
-Схема состояний машины TAP:
-[http://milprog.googlecode.com/svn/wiki/images/tap-state-machine.png]
+Иллюстрации:
+ * [figure_tap_ru   Схема состояний машины TAP]
+ * [figure_dp_ru    Доступ к регистрам блока DP]
+ * [figure_memap_ru Доступ к регистрам блока MEM-AP]
 
-Доступ к регистрам уровня DP (debug port):
-[http://milprog.googlecode.com/svn/wiki/images/arm-debug-access-port.png]
+Регистр IR (instruction register) блока TAP имеет 4-битный размер и может принимать следующие значения:
+ * ABORT (0x8) - останов транзакции, в нашем случае не используется.
+ * DPACC (0xA) - доступ к регистрам уровня DP (debug port).
+ * APACC (0xB) - доступ к регистрам уровня MEM-AP (memory access port).
+ * IDCODE (0xE) - чтение идентификатора микросхемы.
+ * BYPASS (0xF) - проброс данных с задержкой на 1 такт.
 
-Доступ к регистрам уровня MEM-AP (memory access port):
-[http://milprog.googlecode.com/svn/wiki/images/arm-memory-access-port.png]
+Регистр IDCODE:
+||    31---28    || 27----------------12 || 11--------------------0 ||
+|| Version = 0x4 || Part number = 0xBA00 || Manufacturer ID = 0x477 ||
+
+= Регистры DP (debug port) =
+Обращение к регистрам блока DP производится посредством установки IR:=DPACC.
+Транзакция имеет размер 35 бит:
+ * Бит 0: тип обращения, 0-запись, 1-чтение.
+ * Биты 1-2: старшие разряды адреса регистра DP.
+ * Биты 3-34: данные.
+
+Блок DP содержит четыре регистра:
+ * ABORT (0x0)     - останов транзакции (только запись). В нашем случае не используется.
+ * CTRL_STAT (0x4) - управление и статус (чтение и запись).
+ * SELECT (0x8)    - адрес для выбора регистра блока MEM-AP (чтение и запись).
+ * RDBUFF (0xC)    - буфер для чтения результата предыдущей транзакции (только чтение).

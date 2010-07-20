@@ -1,0 +1,5 @@
+#summary Structure of debug access port (Russian).
+
+= Доступ к регистрам уровня DP (debug port) =
+
+[http://milprog.googlecode.com/svn/wiki/images/arm-debug-access-port.png]

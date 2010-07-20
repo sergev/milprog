@@ -1,0 +1,5 @@
+#summary Structure of memory access port (Russian).
+
+= Доступ к регистрам уровня MEM-AP (memory access port) =
+
+[http://milprog.googlecode.com/svn/wiki/images/arm-memory-access-port.png]
