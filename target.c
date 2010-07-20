@@ -66,15 +66,15 @@ void target_write_next (target_t *t, unsigned phys_addr, unsigned data)
     if (debug_level)
         fprintf (stderr, _("write %08x to %08x\n"), data, phys_addr);
 
-    t->adapter->ap_write (t->adapter, phys_addr, OnCD_OMAR);
-    t->adapter->ap_write (t->adapter, data, OnCD_OMDR);
-    t->adapter->ap_write (t->adapter, 0, OnCD_MEM);
+    t->adapter->memap_write (t->adapter, phys_addr, OnCD_OMAR);
+    t->adapter->memap_write (t->adapter, data, OnCD_OMDR);
+    t->adapter->memap_write (t->adapter, 0, OnCD_MEM);
 
     if (t->is_running) {
         /* Если процессор запущен, обращение к памяти произойдёт не сразу.
          * Надо ждать появления бита RDYm в регистре OSCR. */
         for (count = 100; count != 0; count--) {
-            t->adapter->oscr = t->adapter->ap_read (t->adapter, OnCD_OSCR);
+            t->adapter->oscr = t->adapter->memap_read (t->adapter, OnCD_OSCR);
             if (t->adapter->oscr & OSCR_RDYm)
                 break;
             mdelay (1);
@@ -96,7 +96,7 @@ void target_write_word (target_t *t, unsigned phys_addr, unsigned data)
     unsigned oscr_new = (t->adapter->oscr & ~OSCR_RO) | OSCR_SlctMEM;
     if (oscr_new != t->adapter->oscr) {
         t->adapter->oscr = oscr_new;
-        t->adapter->ap_write (t->adapter, t->adapter->oscr, OnCD_OSCR);
+        t->adapter->memap_write (t->adapter, t->adapter->oscr, OnCD_OSCR);
     }
 
     target_write_next (t, phys_addr, data);
@@ -111,7 +111,7 @@ void target_read_start (target_t *t)
     unsigned oscr_new = t->adapter->oscr | OSCR_SlctMEM | OSCR_RO;
     if (oscr_new != t->adapter->oscr) {
         t->adapter->oscr = oscr_new;
-        t->adapter->ap_write (t->adapter, t->adapter->oscr, OnCD_OSCR);
+        t->adapter->memap_write (t->adapter, t->adapter->oscr, OnCD_OSCR);
     }
 }
 
@@ -119,15 +119,15 @@ unsigned target_read_next (target_t *t, unsigned phys_addr)
 {
     unsigned count, data;
 
-    t->adapter->ap_write (t->adapter, phys_addr, OnCD_OMAR);
-    t->adapter->ap_write (t->adapter, 0, OnCD_MEM);
+    t->adapter->memap_write (t->adapter, phys_addr, OnCD_OMAR);
+    t->adapter->memap_write (t->adapter, 0, OnCD_MEM);
 
 /* Адаптер Elvees USB-JTAG не работает, если не делать проверку RDYm. */
 //    if (t->is_running) {
         /* Если процессор запущен, обращение к памяти произойдёт не сразу.
          * Надо ждать появления бита RDYm в регистре OSCR. */
         for (count = 100; count != 0; count--) {
-            t->adapter->oscr = t->adapter->ap_read (t->adapter, OnCD_OSCR);
+            t->adapter->oscr = t->adapter->memap_read (t->adapter, OnCD_OSCR);
             if (t->adapter->oscr & OSCR_RDYm)
                 break;
             mdelay (1);
@@ -138,7 +138,7 @@ unsigned target_read_next (target_t *t, unsigned phys_addr)
             exit (1);
         }
 //    }
-    data = t->adapter->ap_read (t->adapter, OnCD_OMDR);
+    data = t->adapter->memap_read (t->adapter, OnCD_OMDR);
 
     if (debug_level)
         fprintf (stderr, _("read %08x from     %08x\n"), data, phys_addr);
@@ -172,8 +172,8 @@ unsigned target_read_word (target_t *t, unsigned address)
 {
     unsigned value;
 
-    t->adapter->ap_write (t->adapter, MEM_AP_TAR, address & 0xFFFFFFF0);
-    value = t->adapter->ap_read (t->adapter, MEM_AP_DRW | (address & 0xC));
+    t->adapter->memap_write (t->adapter, MEM_AP_TAR, address & 0xFFFFFFF0);
+    value = t->adapter->memap_read (t->adapter, MEM_AP_DRW | (address & 0xC));
     if (debug_level > 1) {
         fprintf (stderr, "target read %08x from %08x\n",
             value, address);
@@ -209,8 +209,8 @@ target_t *target_open (int need_reset)
     if (debug_level)
         fprintf (stderr, "idcode %08X\n", t->idcode);
 
-    switch (t->idcode) {
-    default:
+    /* Проверяем идентификатор ARM Cortex M3. */
+    if (t->idcode != 0x4ba00477) {
         /* Device not detected. */
         if (t->idcode == 0xffffffff || t->idcode == 0)
             fprintf (stderr, _("No response from device -- check power is on!\n"));
@@ -219,13 +219,44 @@ target_t *target_open (int need_reset)
                 t->idcode);
         t->adapter->close (t->adapter);
         exit (1);
-
-    case 0x4ba00477:                /* Идентификатор ARM Cortex M3 */
-        t->cpu_name = "Cortex M3";
-        t->flash_addr = 0x08000000;
-        t->flash_bytes = 128*1024;
-        break;
     }
+
+    /* Включение питания блока отладки, сброс залипающих ошибок. */
+    t->adapter->dp_write (t->adapter, DP_CTRL_STAT,
+	CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
+        SSTICKYORUN | SSTICKYCMP | SSTICKYERR);
+
+    /* Проверка регистра MEM-AP IDR. */
+    unsigned apid = t->adapter->memap_read (t->adapter, MEM_AP_IDR);
+    if (apid != 0x24770011) {
+        /* Device not detected. */
+        fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
+                apid);
+        t->adapter->close (t->adapter);
+        exit (1);
+    }
+
+    /* Проверка регистра MEM-AP CFG. */
+    unsigned cfg = t->adapter->memap_read (t->adapter, MEM_AP_CFG);
+    if (cfg & CFG_BIGENDIAN) {
+        /* Device not detected. */
+        fprintf (stderr, _("Big endian memory type not supported, CFG=%08x.\n"),
+                cfg);
+        t->adapter->close (t->adapter);
+        exit (1);
+    }
+
+    /* Установка режимов блока MEM-AP: регистр CSW. */
+    t->adapter->memap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
+        CSW_32BIT | CSW_ADDRINC_SINGLE);
+    if (debug_level) {
+        unsigned csw = t->adapter->memap_read (t->adapter, MEM_AP_CSW);
+        fprintf (stderr, "MEM-AP CSW = %08x\n", csw);
+    }
+
+    t->cpu_name = "Cortex M3";
+    t->flash_addr = 0x08000000;
+    t->flash_bytes = 128*1024;
     t->is_running = 1;
     return t;
 }
@@ -444,9 +475,9 @@ void target_stop (target_t *t)
     t->adapter->stop_cpu (t->adapter);
     t->is_running = 0;
 
-//    unsigned cfg = t->adapter->ap_read (t->adapter, MEM_AP_CFG);
-//    unsigned base = t->adapter->ap_read (t->adapter, MEM_AP_BASE);
-//    unsigned idr = t->adapter->ap_read (t->adapter, MEM_AP_IDR);
+//    unsigned cfg = t->adapter->memap_read (t->adapter, MEM_AP_CFG);
+//    unsigned base = t->adapter->memap_read (t->adapter, MEM_AP_BASE);
+//    unsigned idr = t->adapter->memap_read (t->adapter, MEM_AP_IDR);
 //    printf ("IDR = %08X, BASE = %08X, CFG = %08X\n", idr, base, cfg);
 }
 
@@ -459,7 +490,7 @@ void target_step (target_t *t)
     if (t->adapter->step_cpu)
         t->adapter->step_cpu (t->adapter);
     else {
-        t->adapter->ap_write (t->adapter,
+        t->adapter->memap_write (t->adapter,
             0, OnCD_GO | IRd_FLUSH_PIPE | IRd_STEP_1CLK);
     }
     target_save_state (t);
@@ -477,7 +508,7 @@ void target_resume (target_t *t)
     if (t->adapter->run_cpu)
         t->adapter->run_cpu (t->adapter);
     else {
-        t->adapter->ap_write (t->adapter,
+        t->adapter->memap_write (t->adapter,
             0, OnCD_GO | IRd_RESUME | IRd_FLUSH_PIPE);
     }
 #endif
@@ -499,7 +530,7 @@ void target_run (target_t *t, unsigned addr)
     if (t->adapter->run_cpu)
         t->adapter->run_cpu (t->adapter);
     else {
-        t->adapter->ap_write (t->adapter,
+        t->adapter->memap_write (t->adapter,
             0, OnCD_GO | IRd_RESUME | IRd_FLUSH_PIPE);
     }
 #endif
