@@ -16,7 +16,7 @@
 
 {{{
 % milprog
-Programmer for Milandr 1986BE9x processors, Version 1.0
+Programmer for Milandr ARM microcontrollers, Version 1.0
 Copyright (C) 2010 Serge Vakulenko.
 Processor: Milandr 1986BM91T (id 412FC230)
 Flash memory: 128 kbytes
