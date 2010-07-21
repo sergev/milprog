@@ -1,6 +1,6 @@
 CC		= gcc
 
-CFLAGS		= -Wall -g -I/opt/local/include -O
+CFLAGS		= -Wall -g -O -I/opt/local/include
 LDFLAGS		= -s
 LIBS		= -L/opt/local/lib -lusb
 
@@ -34,3 +34,6 @@ install:	milprog #milprog-ru.mo
 		install -c -s milprog /usr/local/bin/milprog
 #		install -c -m 444 milprog-ru.mo /usr/local/share/locale/ru/LC_MESSAGES/milprog.mo
 ###
+adapter-mpsse.o: adapter-mpsse.c adapter.h arm-jtag.h
+milprog.o: milprog.c target.h localize.h
+target.o: target.c target.h adapter.h arm-jtag.h localize.h

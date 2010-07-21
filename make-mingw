@@ -1,0 +1,20 @@
+#CC		= gcc
+CC		= i586-mingw32msvc-gcc
+CFLAGS		= -Wall -g -O -DMINGW32 -Ilibusb-win32
+LDFLAGS		= -s
+LIBS		= -Llibusb-win32 -lusb -lintl
+
+COMMON_OBJS     = target.o
+COMMON_OBJS	+= adapter-mpsse.o
+
+PROG_OBJS	= milprog.o $(COMMON_OBJS)
+
+all:		milprog.exe
+
+milprog.exe:	$(PROG_OBJS)
+		$(CC) $(LDFLAGS) -o $@ $(PROG_OBJS) $(LIBS)
+
+###
+adapter-mpsse.o: adapter-mpsse.c adapter.h arm-jtag.h
+milprog.o: milprog.c target.h localize.h
+target.o: target.c target.h adapter.h arm-jtag.h localize.h
