@@ -57,3 +57,6 @@ objcopy -O srec firmware.elf firmware.srec
 {{{
 svn checkout http://milprog.googlecode.com/svn/trunk/ milprog
 }}}
+
+= Регистры блока отладки =
+Краткое описание регистров блока отладки (ARM Debug Interface v5) [jtag_ru приведено на отдельной странице].
