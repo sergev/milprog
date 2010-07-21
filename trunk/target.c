@@ -82,8 +82,6 @@ void target_write_word (target_t *t, unsigned address, unsigned data)
 
 /*
  * Устанавливаем соединение с адаптером JTAG.
- * Не надо сбрасывать процессор!
- * Программа должна продолжать выполнение.
  */
 target_t *target_open (int need_reset)
 {
@@ -273,8 +271,13 @@ void target_write_block (target_t *t, unsigned addr,
 {
     unsigned i;
 
-    for (i=0; i<nwords; i++, addr+=4)
-        target_write_word (t, addr, *data++);
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, addr);
+    for (i=0; i<nwords; i++, addr+=4, data++) {
+        if (debug_level) {
+            fprintf (stderr, _("block write %08x to %08x\n"), *data, addr);
+        }
+        t->adapter->mem_ap_write (t->adapter, MEM_AP_DRW, *data);
+    }
 }
 
 /*
