@@ -11,6 +11,9 @@ PROG_OBJS	= milprog.o $(COMMON_OBJS)
 
 all:		milprog
 
+load:           demo1986ve91.srec
+		milprog $<
+
 milprog:	$(PROG_OBJS)
 		$(CC) $(LDFLAGS) -o $@ $(PROG_OBJS) $(LIBS)
 
