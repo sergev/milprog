@@ -448,13 +448,11 @@ static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
 
 /*
  * Запись регистра MEM-AP.
+ * Старшие биты адреса должны быть предварительно занесены в регистр DP_SELECT.
  */
 static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
-
-    /* В регистр DP_SELECT заносим старшие биты адреса. */
-    mpsse_dp_write (adapter, DP_SELECT, reg & 0xF0);
 
     /* Пишем в регистр MEM-AP. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_APACC, 0);
@@ -478,14 +476,12 @@ static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
 
 /*
  * Чтение регистра MEM-AP.
+ * Старшие биты адреса должны быть предварительно занесены в регистр DP_SELECT.
  */
 static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
     unsigned long long reply;
-
-    /* В регистр DP_SELECT заносим старшие биты адреса. */
-    mpsse_dp_write (adapter, DP_SELECT, reg & 0xF0);
 
     /* Читаем содержимое регистра MEM-AP. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_APACC, 0);

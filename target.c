@@ -61,7 +61,7 @@ unsigned target_read_word (target_t *t, unsigned address)
 
     t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, address);
     value = t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
-    if (debug_level > 1) {
+    if (debug_level) {
         fprintf (stderr, "word read %08x from %08x\n",
             value, address);
     }
@@ -73,7 +73,7 @@ unsigned target_read_word (target_t *t, unsigned address)
  */
 void target_write_word (target_t *t, unsigned address, unsigned data)
 {
-    if (debug_level > 1) {
+    if (debug_level) {
         fprintf (stderr, _("word write %08x to %08x\n"), data, address);
     }
     t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, address);
@@ -125,6 +125,9 @@ target_t *target_open (int need_reset)
 	CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
         SSTICKYORUN | SSTICKYCMP | SSTICKYERR);
 
+    /* Выбираем 3-й блок регистров MEM-AP. */
+    t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
+
     /* Проверка регистра MEM-AP IDR. */
     unsigned apid = t->adapter->mem_ap_read (t->adapter, MEM_AP_IDR);
     if (apid != 0x24770011) {
@@ -142,6 +145,9 @@ target_t *target_open (int need_reset)
         t->adapter->close (t->adapter);
         exit (1);
     }
+
+    /* Выбираем 0-й блок регистров MEM-AP. */
+    t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_CSW & 0xF0);
 
     /* Установка режимов блока MEM-AP: регистр CSW. */
     t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
@@ -170,6 +176,12 @@ target_t *target_open (int need_reset)
         t->adapter->close (t->adapter);
         exit (1);
     }
+
+    /* Подача тактовой частоты на периферийные блоки. */
+    target_write_word (t, PER_CLOCK, 0xFFFFFFFF);
+
+    /* Запрет прерываний. */
+    target_write_word (t, ICER0, 0xFFFFFFFF);
     t->is_running = 1;
     return t;
 }
@@ -203,19 +215,37 @@ unsigned target_flash_bytes (target_t *t)
  */
 int target_erase (target_t *t, unsigned addr)
 {
-    printf (_("Erase: %08X"), t->flash_addr);
-
-    /*TODO*/
-
-    for (;;) {
-        fflush (stdout);
-        mdelay (250);
-        unsigned word = target_read_word (t, t->flash_addr);
-        if (word == 0xffffffff)
-            break;
-        printf (".");
+    printf (_("Erase: %08X..."), t->flash_addr);
+    fflush (stdout);
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);          // set CON = 1
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551);
+    target_write_word (t, EEPROM_DI, 0);
+    for (addr=0; addr<16; addr+=4) {
+	target_write_word (t, EEPROM_ADR, addr);
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_WR);       // set WR
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear WR
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_MAS1 |     // set MAS1
+                                          EEPROM_CMD_XE |       // set XE
+                                          EEPROM_CMD_ERASE);    // set ERASE
+	mdelay (1);                                             // 5 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_MAS1 |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_ERASE |
+                                          EEPROM_CMD_NVSTR);    // set NVSTR
+	mdelay (40);                                            // 40 ms
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_MAS1 |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_NVSTR);    // clear ERASE
+	mdelay (1);                                             // 100 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear XE, NVSTR, MAS1
+	mdelay (1);                                             // 1 us
     }
-    mdelay (250);
+    target_write_word (t, EEPROM_CMD, 0);                       // clear CON
     printf (_(" done\n"));
     return 1;
 }
