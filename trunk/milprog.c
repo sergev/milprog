@@ -523,15 +523,15 @@ usage:
         printf ("Probe:\n");
         printf ("       milprog\n");
         printf ("\nWrite flash memory:\n");
-        printf ("       milprog [-v] file.sre\n");
+        printf ("       milprog [-v] file.srec\n");
         printf ("       milprog [-v] file.bin [address]\n");
         printf ("\nWrite static memory:\n");
-        printf ("       milprog -w [-v] file.sre\n");
+        printf ("       milprog -w [-v] file.srec\n");
         printf ("       milprog -w [-v] file.bin [address]\n");
         printf ("\nRead memory:\n");
         printf ("       milprog -r file.bin address length\n");
         printf ("\nArgs:\n");
-        printf ("       file.sre            Code file SREC format\n");
+        printf ("       file.srec           Code file SREC format\n");
         printf ("       file.bin            Code file in binary format\n");
         printf ("       address             Address of flash memory, default 0x%08X\n",
             DEFAULT_ADDR);
