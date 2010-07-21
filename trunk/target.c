@@ -189,7 +189,7 @@ target_t *target_open (int need_reset)
  */
 void target_close (target_t *t)
 {
-    /* TODO: resume execution */
+    t->adapter->reset_cpu (t->adapter);
     t->adapter->close (t->adapter);
 }
 
