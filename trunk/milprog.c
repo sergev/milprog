@@ -30,7 +30,7 @@
 #include "target.h"
 #include "localize.h"
 
-#define VERSION         "0.1"
+#define VERSION         "1.0"
 #define BLOCKSZ         1024
 #define DEFAULT_ADDR    0x08000000
 
@@ -41,9 +41,7 @@
 unsigned char memory_data [0x20000];   /* Code - up to 128 kbytes */
 int memory_len;
 unsigned memory_base;
-unsigned start_addr = DEFAULT_ADDR;
 unsigned progress_count, progress_step;
-int check_erase;
 int verify_only;
 int debug_level;
 target_t *target;
@@ -198,8 +196,6 @@ void progress ()
 void quit (void)
 {
     if (target != 0) {
-        if (start_addr != DEFAULT_ADDR)
-            printf (_("Start: %08X\n"), start_addr);
         target_close (target);
         free (target);
         target = 0;
@@ -225,31 +221,6 @@ void do_probe ()
         target_idcode (target));
     printf (_("Flash memory: %d kbytes\n"), target_flash_bytes (target) / 1024);
 }
-
-/*
- * Check chip clean.
- */
-static int check_clean (target_t *t, unsigned addr)
-{
-    unsigned offset, i, sz, end, mem [16*1024];
-
-    sz = target_flash_bytes (t);
-    addr &= ~(sz-1);
-    end = addr + sz;
-    for (offset=0; addr+offset<end; offset+=sizeof(mem)) {
-        sz = sizeof (mem);
-        if (sz + offset > end)
-            sz = end - offset;
-        sz /= sizeof(unsigned);
-        target_read_block (t, addr + offset, sz, mem);
-        for (i=0; i<sz; i++) {
-            if (mem[i] != 0xffffffff)
-                return 0;
-        }
-    }
-    printf (_("Clean flash: %08X\n"), addr);
-    return 1;
-};
 
 void program_block (target_t *mc, unsigned addr, int len)
 {
@@ -310,7 +281,6 @@ void do_program (char *filename)
 
     if (! verify_only) {
         /* Erase flash. */
-        if (! check_erase || ! check_clean (target, memory_base))
             target_erase (target, memory_base);
     }
     for (progress_step=1; ; progress_step<<=1) {
@@ -508,7 +478,7 @@ int main (int argc, char **argv)
 
     setvbuf (stdout, (char *)NULL, _IOLBF, 0);
     setvbuf (stderr, (char *)NULL, _IOLBF, 0);
-    printf (_("Programmer for Elvees MIPS32 processors, Version %s\n"), VERSION);
+    printf (_("Programmer for Milandr 1986BE9x processors, Version %s\n"), VERSION);
     progname = argv[0];
     copyright = _("Copyright (C) 2010 Serge Vakulenko");
     signal (SIGINT, interrupted);
@@ -517,12 +487,9 @@ int main (int argc, char **argv)
 #endif
     signal (SIGTERM, interrupted);
 
-    while ((ch = getopt_long (argc, argv, "vDhrwcg:CVW",
+    while ((ch = getopt_long (argc, argv, "vDhrwCVW",
       long_options, 0)) != -1) {
         switch (ch) {
-        case 'c':
-            ++check_erase;
-            continue;
         case 'v':
             ++verify_only;
             continue;
@@ -534,9 +501,6 @@ int main (int argc, char **argv)
             continue;
         case 'w':
             ++memory_write_mode;
-            continue;
-        case 'g':
-            start_addr = strtoul (optarg, 0, 0);
             continue;
         case 'h':
             break;
@@ -562,8 +526,8 @@ usage:
         printf ("       milprog [-v] file.sre\n");
         printf ("       milprog [-v] file.bin [address]\n");
         printf ("\nWrite static memory:\n");
-        printf ("       milprog -w [-v] [-g address] file.sre\n");
-        printf ("       milprog -w [-v] [-g address] file.bin [address]\n");
+        printf ("       milprog -w [-v] file.sre\n");
+        printf ("       milprog -w [-v] file.bin [address]\n");
         printf ("\nRead memory:\n");
         printf ("       milprog -r file.bin address length\n");
         printf ("\nArgs:\n");
@@ -571,11 +535,9 @@ usage:
         printf ("       file.bin            Code file in binary format\n");
         printf ("       address             Address of flash memory, default 0x%08X\n",
             DEFAULT_ADDR);
-        printf ("       -c                  Check clean\n");
         printf ("       -v                  Verify only\n");
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
-        printf ("       -g addr             Start execution from address\n");
         printf ("       -D                  Debug mode\n");
         printf ("       -h, --help          Print this help message\n");
         printf ("       -V, --version       Print version\n");
