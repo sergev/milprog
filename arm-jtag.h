@@ -88,6 +88,7 @@
  * Cortex-M3 registers.
  */
 #define CPUID                   0xE000ED00
+#define ICER0                   0xE000E180      /* Запрет прерываний */
 
 /* Debug Control Block */
 #define DCB_DHCSR               0xE000EDF0
@@ -124,8 +125,6 @@
 /*
  * Milandr 1986BE9x register definitions.
  */
-#define ICER0                   0xE000E180      /* Запрет прерываний */
-
 #define PER_CLOCK               0x4002001C      /* Разрешение тактовой частоты */
 
 #define EEPROM_CMD		0x40018000	/* Управление Flash-памятью */
