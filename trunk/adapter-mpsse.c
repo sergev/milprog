@@ -408,18 +408,16 @@ static unsigned mpsse_get_idcode (adapter_t *adapter)
 static void mpsse_dp_write (adapter_t *adapter, int reg, unsigned value)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
-    unsigned reply;
 
     mpsse_send (a, 1, 1, 4, JTAG_IR_DPACC, 0);
     mpsse_send (a, 0, 0, 32 + 3, (reg >> 1) |
-        (unsigned long long) value << 3, 1);
-    reply = mpsse_recv (a) & 7;
+        (unsigned long long) value << 3, 0);
     if (debug_level > 1) {
-        fprintf (stderr, "DP write %08x to %s (%02x), reply %x\n", value,
+        fprintf (stderr, "DP write %08x to %s (%02x)\n", value,
             reg == DP_ABORT ? "ABORT" :
             reg == DP_CTRL_STAT ? "CTRL/STAT" :
             reg == DP_SELECT ? "SELECT" :
-            reg == DP_RDBUFF ? "RDBUFF" : "???", reg, reply);
+            reg == DP_RDBUFF ? "RDBUFF" : "???", reg);
     }
 }
 
@@ -429,19 +427,17 @@ static void mpsse_dp_write (adapter_t *adapter, int reg, unsigned value)
 static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
-    unsigned long long reply;
 
     mpsse_send (a, 1, 1, 4, JTAG_IR_DPACC, 0);
     mpsse_send (a, 0, 0, 32 + 3, (reg >> 1) | 1, 0);
     mpsse_send (a, 0, 0, 32 + 3, (DP_RDBUFF >> 1) | 1, 1);
-    reply = mpsse_recv (a);
-    unsigned value = reply >> 3;
+    unsigned value = mpsse_recv (a) >> 3;
     if (debug_level > 1) {
-        fprintf (stderr, "DP read %08x from %s (%02x), reply %d\n", value,
+        fprintf (stderr, "DP read %08x from %s (%02x)\n", value,
             reg == DP_ABORT ? "ABORT" :
             reg == DP_CTRL_STAT ? "CTRL/STAT" :
             reg == DP_SELECT ? "SELECT" :
-            reg == DP_RDBUFF ? "RDBUFF" : "???", reg, (unsigned) reply & 7);
+            reg == DP_RDBUFF ? "RDBUFF" : "???", reg);
     }
     return value;
 }
@@ -457,10 +453,9 @@ static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
     /* Пишем в регистр MEM-AP. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_APACC, 0);
     mpsse_send (a, 0, 0, 32 + 3, (reg >> 1 & 6) |
-        (unsigned long long) value << 3, 1);
-    unsigned reply = mpsse_recv (a) & 7;
+        (unsigned long long) value << 3, 0);
     if (debug_level > 1) {
-        fprintf (stderr, "MEM-AP write %08x to %s (%02x), reply %x\n", value,
+        fprintf (stderr, "MEM-AP write %08x to %s (%02x)\n", value,
             reg == MEM_AP_CSW  ? "CSW" :
             reg == MEM_AP_TAR  ? "TAR" :
             reg == MEM_AP_DRW  ? "DRW" :
@@ -470,7 +465,7 @@ static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
             reg == MEM_AP_BD3  ? "BD3" :
             reg == MEM_AP_CFG  ? "CFG" :
             reg == MEM_AP_BASE ? "BASE" :
-            reg == MEM_AP_IDR  ? "IDR" : "???", reg, reply);
+            reg == MEM_AP_IDR  ? "IDR" : "???", reg);
     }
 }
 
@@ -481,7 +476,6 @@ static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
 static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
-    unsigned long long reply;
 
     /* Читаем содержимое регистра MEM-AP. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_APACC, 0);
@@ -490,10 +484,9 @@ static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
     /* Извлекаем прочитанное значение из регистра RDBUFF. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_DPACC, 0);
     mpsse_send (a, 0, 0, 32 + 3, (DP_RDBUFF >> 1) | 1, 1);
-    reply = mpsse_recv (a);
-    unsigned value = reply >> 3;
+    unsigned value = mpsse_recv (a) >> 3;
     if (debug_level > 1) {
-        fprintf (stderr, "MEM-AP read %08x from %s (%02x), reply %x\n", value,
+        fprintf (stderr, "MEM-AP read %08x from %s (%02x)\n", value,
             reg == MEM_AP_CSW  ? "CSW" :
             reg == MEM_AP_TAR  ? "TAR" :
             reg == MEM_AP_DRW  ? "DRW" :
@@ -503,7 +496,7 @@ static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
             reg == MEM_AP_BD3  ? "BD3" :
             reg == MEM_AP_CFG  ? "CFG" :
             reg == MEM_AP_BASE ? "BASE" :
-            reg == MEM_AP_IDR  ? "IDR" : "???", reg, (unsigned) reply & 7);
+            reg == MEM_AP_IDR  ? "IDR" : "???", reg);
     }
     return value;
 }

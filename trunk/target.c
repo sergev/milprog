@@ -217,7 +217,7 @@ int target_erase (target_t *t, unsigned addr)
 {
     printf (_("Erase: %08X..."), t->flash_addr);
     fflush (stdout);
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);          // set CON = 1
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);          // set CON
     target_write_word (t, EEPROM_KEY, 0x8AAA5551);
     target_write_word (t, EEPROM_DI, 0);
     for (addr=0; addr<16; addr+=4) {
@@ -259,8 +259,8 @@ void target_read_block (target_t *t, unsigned addr,
     unsigned i;
 
 //fprintf (stderr, "target_read_block (addr = %x, nwords = %d)\n", addr, nwords);
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, addr);
     for (i=0; i<nwords; i++, addr+=4, data++) {
-        t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, addr);
         *data = t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
         if (debug_level)
             fprintf (stderr, _("block read %08x from %08x\n"), *data, addr);
@@ -277,17 +277,55 @@ void target_write_block (target_t *t, unsigned addr,
         target_write_word (t, addr, *data++);
 }
 
-void target_program_block (target_t *t, unsigned addr,
+/*
+ * Программирование одной страницы памяти (до 256 слов).
+ * Страница должна быть предварительно стёрта.
+ */
+void target_program_block (target_t *t, unsigned pageaddr,
     unsigned nwords, unsigned *data)
 {
-#if 0
-    while (nwords-- > 0) {
-        target_write_nwords (t, 4,
-            base + t->flash_addr_odd, t->flash_cmd_aa,
-            base + t->flash_addr_even, t->flash_cmd_55,
-            base + t->flash_addr_odd, t->flash_cmd_a0,
-            addr, *data++);
-        addr += 4;
+    unsigned i;
+
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);		// set CON
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551);
+    for (i=0; i<nwords; i++) {
+        target_write_word (t, EEPROM_ADR, pageaddr + i*4);
+	mdelay (1);                                             // 10 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |	// set XE
+                                          EEPROM_CMD_PROG);     // set PROG
+	mdelay (1);                                             // 5 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR);	// set NVSTR
+	target_write_word (t, EEPROM_DI, data [i]);
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR |
+                                          EEPROM_CMD_WR);       // set WR
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR);	// clear WR
+	mdelay (1); 					        // 10 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR |
+                                          EEPROM_CMD_YE);	// set YE
+	mdelay (1);                                             // 40 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR);	// clear YE
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_NVSTR);	// clear PROG
+	mdelay (1);                                             // 5 us
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);	// clear XE, NVSTR
+	mdelay (1);                                             // 5 us
     }
-#endif
+    target_write_word (t, EEPROM_CMD, 0);                       // clear CON
 }
