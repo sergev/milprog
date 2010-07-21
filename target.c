@@ -164,7 +164,7 @@ target_t *target_open (int need_reset)
     t->cpuid = target_read_word (t, CPUID);
     switch (t->cpuid) {
     case 0x412fc230:    /* Миландр 1986ВМ91Т */
-        t->cpu_name = "Cortex M3";
+        t->cpu_name = _("Milandr 1986BM91T");
         t->flash_addr = 0x08000000;
         t->flash_bytes = 128*1024;
         break;
