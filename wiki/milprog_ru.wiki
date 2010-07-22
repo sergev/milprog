@@ -60,5 +60,22 @@ objcopy -O srec firmware.elf firmware.srec
 svn checkout http://milprog.googlecode.com/svn/trunk/ milprog
 }}}
 
+Для сборки под Linux или Mac OS X выполните команду:
+{{{
+make
+}}}
+
+Для сборки под Windows требуется установить компилятор MinGW.
+Это можно сделать по инструкции:
+[http://mingw.org/wiki/HOWTO_Install_the_MinGW_GCC_Compiler_Suite].
+Либо готовый к употреблению пакет можно скачать здесь:
+[http://uos-embedded.googlecode.com/files/mingw51.zip mingw51.zip].
+Распакуйте его в каталог c:\, затем вызывайте c:\Msys\1.0\msys.bat.
+
+После установки MinGW и Msys сборка MILPROG производится вызовом скрипта:
+{{{
+compile.bat
+}}}
+
 = Регистры блока отладки =
 Краткое описание регистров блока отладки (ARM Debug Interface v5) [jtag_ru приведено на отдельной странице].
