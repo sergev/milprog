@@ -581,6 +581,9 @@ failed: usb_release_interface (a->usbdev, 0);
     unsigned divisor = 3;
     unsigned char latency_timer = 1;
 
+//unsigned divisor = 20-1;
+//unsigned char latency_timer = 8;
+
     if (usb_control_msg (a->usbdev,
         USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT,
         SIO_SET_LATENCY_TIMER, latency_timer, 1, 0, 0, 1000) != 0) {

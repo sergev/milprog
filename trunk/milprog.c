@@ -203,6 +203,7 @@ void quit (void)
 
 void interrupted (int signum)
 {
+    fprintf (stderr, _("\nInterrupted.\n"));
     quit();
     _exit (-1);
 }

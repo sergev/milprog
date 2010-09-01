@@ -30,7 +30,6 @@ struct _target_t {
     adapter_t   *adapter;
     const char  *cpu_name;
     unsigned    cpuid;
-    unsigned    is_running;
     unsigned    flash_addr;
     unsigned    flash_bytes;
 };
@@ -86,6 +85,7 @@ void target_write_word (target_t *t, unsigned address, unsigned data)
 target_t *target_open (int need_reset)
 {
     target_t *t;
+    unsigned idcode;
 
     t = calloc (1, sizeof (target_t));
     if (! t) {
@@ -102,7 +102,8 @@ target_t *target_open (int need_reset)
     }
 
     /* Проверяем идентификатор процессора. */
-    unsigned idcode = t->adapter->get_idcode (t->adapter);
+again:
+    idcode = t->adapter->get_idcode (t->adapter);
     if (debug_level)
         fprintf (stderr, "idcode %08X\n", idcode);
 
@@ -131,8 +132,9 @@ target_t *target_open (int need_reset)
     if (apid != 0x24770011) {
         fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
                 apid);
-        t->adapter->close (t->adapter);
-        exit (1);
+        goto again;
+//        t->adapter->close (t->adapter);
+//        exit (1);
     }
 
     /* Проверка регистра MEM-AP CFG. */
@@ -156,9 +158,25 @@ target_t *target_open (int need_reset)
     }
 
     /* Останавливаем процессор. */
-    unsigned dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFF;
-    dhcsr |= DBGKEY | C_DEBUGEN | C_HALT;
-    target_write_word (t, DCB_DHCSR, dhcsr);
+    unsigned need_eoln = 0;
+    for (;;) {
+        unsigned dhcsr;
+
+        target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN | C_HALT |
+            C_MASKINTS | C_SNAPSTALL);
+        dhcsr = target_read_word (t, DCB_DHCSR);
+        if (dhcsr & S_HALT) {
+//fprintf (stderr, "\nDHCSR = %08x ", dhcsr);
+            if (need_eoln)
+                fprintf (stderr, "\n");
+            if (dhcsr == ~0)
+                goto again;
+            break;
+        }
+        fprintf (stderr, "\rStopping CPU...");
+        fflush (stderr);
+        need_eoln = 1;
+    }
 
     /* Проверяем идентификатор процессора. */
     t->cpuid = target_read_word (t, CPUID);
@@ -180,7 +198,6 @@ target_t *target_open (int need_reset)
 
     /* Запрет прерываний. */
     target_write_word (t, ICER0, 0xFFFFFFFF);
-    t->is_running = 1;
     return t;
 }
 
@@ -189,6 +206,8 @@ target_t *target_open (int need_reset)
  */
 void target_close (target_t *t)
 {
+//fprintf (stderr, "DHCSR := %08x\n", DBGKEY);
+    target_write_word (t, DCB_DHCSR, DBGKEY);
     t->adapter->reset_cpu (t->adapter);
     t->adapter->close (t->adapter);
 }
@@ -331,4 +350,12 @@ void target_program_block (target_t *t, unsigned pageaddr,
 	mdelay (1);                                             // 5 us
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
+
+    /* На образцах 1986ВЕ91Т с маркировкой "1030"
+     * после прошивки каждого блока чтение первых 4-х слов
+     * даёт почему-то FFFFFFFF. Причина непонятна.
+     * Следующий цикл устраняет этот эффект. */
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, pageaddr);
+    for (i=0; i<16; i++)
+        t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
 }
