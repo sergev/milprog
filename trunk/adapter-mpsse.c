@@ -507,7 +507,10 @@ static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
 static void mpsse_reset_cpu (adapter_t *adapter)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
-    mpsse_flush_output (a);
+
+    /* Забываем невыполненную транзакцию. */
+    a->bytes_to_write = 0;
+    a->bytes_to_read = 0;
 
     /* Активируем /SYSRST на несколько микросекунд. */
     mpsse_reset (a, 0, 1, 1);
