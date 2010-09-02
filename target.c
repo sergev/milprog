@@ -356,6 +356,8 @@ void target_program_block (target_t *t, unsigned pageaddr,
      * даёт почему-то FFFFFFFF. Причина непонятна.
      * Следующий цикл устраняет этот эффект. */
     t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, pageaddr);
-    for (i=0; i<16; i++)
+    for (i=0; i<9; i++) {
         t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
+//        fprintf (stderr, "addr %08x read %08x\n", pageaddr+i*4, word);
+    }
 }
