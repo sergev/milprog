@@ -4,7 +4,7 @@
 [http://milprog.googlecode.com/svn/wiki/images/arm-usb-tiny.jpg]
 
 Адаптер [http://www.olimex.com/dev/arm-usb-tiny.html Olimex ARM-USB-Tiny] построен на основе микросхемы FTDI FT2232D. Он позволяет через интерфейс USB производить обмен данными с портом JTAG. В качестве программного интерфейса используется библиотека
-[http://www.libusb.org/ libusb-0.1]. Имеются версии linusb для Linux, Mac OS X и
+[http://www.libusb.org/ libusb-0.1]. Имеются версии для Linux, Mac OS X и
 [http://sourceforge.net/apps/trac/libusb-win32/wiki Windows].
 
 = Блок отладки =
