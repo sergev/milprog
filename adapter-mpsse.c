@@ -428,10 +428,25 @@ static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
 {
     mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
 
+    /* Читаем содержимое регистра DP. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_DPACC, 0);
     mpsse_send (a, 0, 0, 32 + 3, (reg >> 1) | 1, 0);
     mpsse_send (a, 0, 0, 32 + 3, (DP_RDBUFF >> 1) | 1, 1);
-    unsigned value = mpsse_recv (a) >> 3;
+    unsigned long long reply = mpsse_recv (a);
+
+    /* Предыдущая транзакция MEM-AP могла завершиться неуспешно.
+     * Анализируем ответ WAIT. */
+    adapter->stalled = ((unsigned) reply & 7) != 2;
+    if (adapter->stalled) {
+        if (debug_level > 1)
+            fprintf (stderr, "DP read <<<WAIT>>> from %s (%02x)\n",
+                reg == DP_ABORT ? "ABORT" :
+                reg == DP_CTRL_STAT ? "CTRL/STAT" :
+                reg == DP_SELECT ? "SELECT" :
+                reg == DP_RDBUFF ? "RDBUFF" : "???", reg);
+        return 0;
+    }
+    unsigned value = reply >> 3;
     if (debug_level > 1) {
         fprintf (stderr, "DP read %08x from %s (%02x)\n", value,
             reg == DP_ABORT ? "ABORT" :
@@ -484,7 +499,27 @@ static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
     /* Извлекаем прочитанное значение из регистра RDBUFF. */
     mpsse_send (a, 1, 1, 4, JTAG_IR_DPACC, 0);
     mpsse_send (a, 0, 0, 32 + 3, (DP_RDBUFF >> 1) | 1, 1);
-    unsigned value = mpsse_recv (a) >> 3;
+    unsigned long long reply = mpsse_recv (a);
+
+    /* Предыдущая транзакция MEM-AP могла завершиться неуспешно.
+     * Анализируем ответ WAIT. */
+    adapter->stalled = ((unsigned) reply & 7) != 2;
+    if (adapter->stalled) {
+        if (debug_level > 1)
+            fprintf (stderr, "MEM-AP read <<<WAIT>>> from %s (%02x)\n",
+                reg == MEM_AP_CSW  ? "CSW" :
+                reg == MEM_AP_TAR  ? "TAR" :
+                reg == MEM_AP_DRW  ? "DRW" :
+                reg == MEM_AP_BD0  ? "BD0" :
+                reg == MEM_AP_BD1  ? "BD1" :
+                reg == MEM_AP_BD2  ? "BD2" :
+                reg == MEM_AP_BD3  ? "BD3" :
+                reg == MEM_AP_CFG  ? "CFG" :
+                reg == MEM_AP_BASE ? "BASE" :
+                reg == MEM_AP_IDR  ? "IDR" : "???", reg);
+        return 0;
+    }
+    unsigned value = reply >> 3;
     if (debug_level > 1) {
         fprintf (stderr, "MEM-AP read %08x from %s (%02x)\n", value,
             reg == MEM_AP_CSW  ? "CSW" :
@@ -618,7 +653,6 @@ failed: usb_release_interface (a->usbdev, 0);
     mpsse_send (a, 6, 31, 0, 0, 0);         /* TMS 1-1-1-1-1-0 */
 
     /* Обязательные функции. */
-    a->adapter.name = "FT2232";
     a->adapter.close = mpsse_close;
     a->adapter.get_idcode = mpsse_get_idcode;
     a->adapter.reset_cpu = mpsse_reset_cpu;

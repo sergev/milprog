@@ -102,7 +102,6 @@ target_t *target_open (int need_reset)
     }
 
     /* Проверяем идентификатор процессора. */
-again:
     idcode = t->adapter->get_idcode (t->adapter);
     if (debug_level)
         fprintf (stderr, "idcode %08X\n", idcode);
@@ -120,9 +119,10 @@ again:
     }
 
     /* Включение питания блока отладки, сброс залипающих ошибок. */
-    t->adapter->dp_write (t->adapter, DP_CTRL_STAT,
-	CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
-        SSTICKYORUN | SSTICKYCMP | SSTICKYERR);
+    unsigned ctl = CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
+        SSTICKYORUN | SSTICKYCMP | SSTICKYERR;
+    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
+    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
 
     /* Выбираем 3-й блок регистров MEM-AP. */
     t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
@@ -132,9 +132,8 @@ again:
     if (apid != 0x24770011) {
         fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
                 apid);
-        goto again;
-//        t->adapter->close (t->adapter);
-//        exit (1);
+        t->adapter->close (t->adapter);
+        exit (1);
     }
 
     /* Проверка регистра MEM-AP CFG. */
@@ -158,24 +157,23 @@ again:
     }
 
     /* Останавливаем процессор. */
-    unsigned need_eoln = 0;
     for (;;) {
-        unsigned dhcsr;
+        target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN |
+            C_HALT | C_MASKINTS | C_SNAPSTALL);
+        t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
+        if (t->adapter->stalled)
+            continue;
 
-        target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN | C_HALT |
-            C_MASKINTS | C_SNAPSTALL);
-        dhcsr = target_read_word (t, DCB_DHCSR);
-        if (dhcsr & S_HALT) {
-//fprintf (stderr, "\nDHCSR = %08x ", dhcsr);
-            if (need_eoln)
-                fprintf (stderr, "\n");
-            if (dhcsr == ~0)
-                goto again;
+        unsigned dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+        if (t->adapter->stalled)
+            continue;
+        if (dhcsr == (C_DEBUGEN | C_HALT | C_MASKINTS | C_SNAPSTALL |
+                      S_REGRDY | S_HALT)) {
             break;
         }
-        fprintf (stderr, "\rStopping CPU...");
-        fflush (stderr);
-        need_eoln = 1;
+        /* Сброс блока отладки. */
+        t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
+        t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
     }
 
     /* Проверяем идентификатор процессора. */
