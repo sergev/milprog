@@ -1,7 +1,7 @@
 CC		= gcc
 
-CFLAGS		= -Wall -g -O -I/opt/local/include
-LDFLAGS		= -s
+CFLAGS		= -Wall -g -I/opt/local/include -O
+LDFLAGS		= -g
 LIBS		= -L/opt/local/lib -lusb
 
 COMMON_OBJS     = target.o

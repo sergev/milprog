@@ -35,6 +35,7 @@ struct _adapter_t {
     unsigned (*dp_read) (adapter_t *a, int reg);
     void (*mem_ap_write) (adapter_t *a, int reg, unsigned val);
     unsigned (*mem_ap_read) (adapter_t *a, int reg);
+    void (*read_data) (adapter_t *a, unsigned addr, unsigned nwords, unsigned *data);
 };
 
 adapter_t *adapter_open_mpsse (void);
