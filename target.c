@@ -204,11 +204,14 @@ target_t *target_open (int need_reset)
  */
 void target_close (target_t *t)
 {
+    t->adapter->reset_cpu (t->adapter);
+
     /* Пускаем процессор. */
     target_write_word (t, DCB_DHCSR, DBGKEY);
     t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
     t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
     t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
+
     t->adapter->reset_cpu (t->adapter);
     t->adapter->close (t->adapter);
 }
@@ -274,14 +277,20 @@ int target_erase (target_t *t, unsigned addr)
 void target_read_block (target_t *t, unsigned addr,
     unsigned nwords, unsigned *data)
 {
-    unsigned i;
-
 //fprintf (stderr, "target_read_block (addr = %x, nwords = %d)\n", addr, nwords);
-    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, addr);
-    for (i=0; i<nwords; i++, addr+=4, data++) {
-        *data = t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
-        if (debug_level)
-            fprintf (stderr, _("block read %08x from %08x\n"), *data, addr);
+    while (nwords > 0) {
+        unsigned n = 10;
+        if (n > nwords)
+            n = nwords;
+        t->adapter->read_data (t->adapter, addr, n, data);
+        if (t->adapter->stalled) {
+            if (debug_level > 1)
+                fprintf (stderr, "MEM-AP read data <<<WAIT>>>\n");
+            continue;
+        }
+        addr += n<<2;
+        data += n;
+        nwords -= n;
     }
 //fprintf (stderr, "    done (addr = %x)\n", addr);
 }
@@ -313,11 +322,11 @@ void target_program_block (target_t *t, unsigned pageaddr,
     target_write_word (t, EEPROM_KEY, 0x8AAA5551);
     for (i=0; i<nwords; i++) {
         target_write_word (t, EEPROM_ADR, pageaddr + i*4);
-//	mdelay (1);                                             // 10 us
+        //delay (1);                                            // 10 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |	// set XE
                                           EEPROM_CMD_PROG);     // set PROG
-//	mdelay (1);                                             // 5 us
+	//mdelay (1);                                           // 5 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
@@ -332,13 +341,13 @@ void target_program_block (target_t *t, unsigned pageaddr,
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
                                           EEPROM_CMD_NVSTR);	// clear WR
-//	mdelay (1); 					        // 10 us
+	//mdelay (1); 					        // 10 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
                                           EEPROM_CMD_NVSTR |
                                           EEPROM_CMD_YE);	// set YE
-//	mdelay (1);                                             // 40 us
+	//mdelay (1);                                           // 40 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
@@ -346,9 +355,9 @@ void target_program_block (target_t *t, unsigned pageaddr,
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_NVSTR);	// clear PROG
-//	mdelay (1);                                             // 5 us
+	//mdelay (1);                                           // 5 us
         target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);	// clear XE, NVSTR
-//	mdelay (1);                                             // 5 us
+	//mdelay (1);                                           // 5 us
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
 

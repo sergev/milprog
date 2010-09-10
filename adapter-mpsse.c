@@ -501,6 +501,41 @@ static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
 }
 
 /*
+ * Чтение блока памяти.
+ * Предварительно в регистр DP_SELECT должен быть занесён 0.
+ * Количество слов не больше 10, иначе переполняется буфер USB.
+ */
+static void mpsse_read_data (adapter_t *adapter,
+    unsigned addr, unsigned nwords, unsigned *data)
+{
+    mpsse_adapter_t *a = (mpsse_adapter_t*) adapter;
+
+    /* Пишем адрес в регистр TAR. */
+    mpsse_mem_ap_write (adapter, MEM_AP_TAR, addr);
+
+    /* Запрашиваем данные через регистр DRW.
+     * Первое чтение не выдаёт значения. */
+    mpsse_send (a, 1, 1, 4, JTAG_IR_APACC, 0);
+    mpsse_send (a, 0, 0, 32 + 3, (MEM_AP_DRW >> 1 & 6) | 1, 0);
+    unsigned i;
+    for (i=0; i<nwords; i++) {
+        mpsse_send (a, 1, 1, 4, JTAG_IR_APACC, 0);
+        mpsse_send (a, 0, 0, 32 + 3, (MEM_AP_DRW >> 1 & 6) | 1, 1);
+    }
+    /* Шлём пакет. */
+    mpsse_flush_output (a);
+
+    /* Извлекаем и обрабатываем данные. */
+    for (i=0; i<nwords; i++) {
+        unsigned long long reply;
+        memcpy (&reply, a->input + i*a->bytes_per_word, sizeof (reply));
+        reply = mpsse_fix_data (a, reply);
+        adapter->stalled = ((unsigned) reply & 7) != 2;
+        data[i] = reply >> 3;
+    }
+}
+
+/*
  * Аппаратный сброс процессора.
  */
 static void mpsse_reset_cpu (adapter_t *adapter)
@@ -624,5 +659,6 @@ failed: usb_release_interface (a->usbdev, 0);
     a->adapter.dp_write = mpsse_dp_write;
     a->adapter.mem_ap_read = mpsse_mem_ap_read;
     a->adapter.mem_ap_write = mpsse_mem_ap_write;
+    a->adapter.read_data = mpsse_read_data;
     return &a->adapter;
 }
