@@ -208,6 +208,7 @@ void target_close (target_t *t)
     target_write_word (t, DCB_DHCSR, DBGKEY);
     t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
     t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
+    t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
     t->adapter->reset_cpu (t->adapter);
     t->adapter->close (t->adapter);
 }
@@ -312,11 +313,11 @@ void target_program_block (target_t *t, unsigned pageaddr,
     target_write_word (t, EEPROM_KEY, 0x8AAA5551);
     for (i=0; i<nwords; i++) {
         target_write_word (t, EEPROM_ADR, pageaddr + i*4);
-	mdelay (1);                                             // 10 us
+//	mdelay (1);                                             // 10 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |	// set XE
                                           EEPROM_CMD_PROG);     // set PROG
-	mdelay (1);                                             // 5 us
+//	mdelay (1);                                             // 5 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
@@ -331,13 +332,13 @@ void target_program_block (target_t *t, unsigned pageaddr,
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
                                           EEPROM_CMD_NVSTR);	// clear WR
-	mdelay (1); 					        // 10 us
+//	mdelay (1); 					        // 10 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
                                           EEPROM_CMD_NVSTR |
                                           EEPROM_CMD_YE);	// set YE
-	mdelay (1);                                             // 40 us
+//	mdelay (1);                                             // 40 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
@@ -345,9 +346,9 @@ void target_program_block (target_t *t, unsigned pageaddr,
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_NVSTR);	// clear PROG
-	mdelay (1);                                             // 5 us
+//	mdelay (1);                                             // 5 us
         target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);	// clear XE, NVSTR
-	mdelay (1);                                             // 5 us
+//	mdelay (1);                                             // 5 us
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
 

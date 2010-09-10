@@ -414,10 +414,7 @@ static void mpsse_dp_write (adapter_t *adapter, int reg, unsigned value)
         (unsigned long long) value << 3, 0);
     if (debug_level > 1) {
         fprintf (stderr, "DP write %08x to %s (%02x)\n", value,
-            reg == DP_ABORT ? "ABORT" :
-            reg == DP_CTRL_STAT ? "CTRL/STAT" :
-            reg == DP_SELECT ? "SELECT" :
-            reg == DP_RDBUFF ? "RDBUFF" : "???", reg);
+            DP_REGNAME(reg), reg);
     }
 }
 
@@ -440,19 +437,13 @@ static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
     if (adapter->stalled) {
         if (debug_level > 1)
             fprintf (stderr, "DP read <<<WAIT>>> from %s (%02x)\n",
-                reg == DP_ABORT ? "ABORT" :
-                reg == DP_CTRL_STAT ? "CTRL/STAT" :
-                reg == DP_SELECT ? "SELECT" :
-                reg == DP_RDBUFF ? "RDBUFF" : "???", reg);
+                DP_REGNAME(reg), reg);
         return 0;
     }
     unsigned value = reply >> 3;
     if (debug_level > 1) {
         fprintf (stderr, "DP read %08x from %s (%02x)\n", value,
-            reg == DP_ABORT ? "ABORT" :
-            reg == DP_CTRL_STAT ? "CTRL/STAT" :
-            reg == DP_SELECT ? "SELECT" :
-            reg == DP_RDBUFF ? "RDBUFF" : "???", reg);
+            DP_REGNAME(reg), reg);
     }
     return value;
 }
@@ -471,16 +462,7 @@ static void mpsse_mem_ap_write (adapter_t *adapter, int reg, unsigned value)
         (unsigned long long) value << 3, 0);
     if (debug_level > 1) {
         fprintf (stderr, "MEM-AP write %08x to %s (%02x)\n", value,
-            reg == MEM_AP_CSW  ? "CSW" :
-            reg == MEM_AP_TAR  ? "TAR" :
-            reg == MEM_AP_DRW  ? "DRW" :
-            reg == MEM_AP_BD0  ? "BD0" :
-            reg == MEM_AP_BD1  ? "BD1" :
-            reg == MEM_AP_BD2  ? "BD2" :
-            reg == MEM_AP_BD3  ? "BD3" :
-            reg == MEM_AP_CFG  ? "CFG" :
-            reg == MEM_AP_BASE ? "BASE" :
-            reg == MEM_AP_IDR  ? "IDR" : "???", reg);
+            MEM_AP_REGNAME(reg), reg);
     }
 }
 
@@ -507,31 +489,13 @@ static unsigned mpsse_mem_ap_read (adapter_t *adapter, int reg)
     if (adapter->stalled) {
         if (debug_level > 1)
             fprintf (stderr, "MEM-AP read <<<WAIT>>> from %s (%02x)\n",
-                reg == MEM_AP_CSW  ? "CSW" :
-                reg == MEM_AP_TAR  ? "TAR" :
-                reg == MEM_AP_DRW  ? "DRW" :
-                reg == MEM_AP_BD0  ? "BD0" :
-                reg == MEM_AP_BD1  ? "BD1" :
-                reg == MEM_AP_BD2  ? "BD2" :
-                reg == MEM_AP_BD3  ? "BD3" :
-                reg == MEM_AP_CFG  ? "CFG" :
-                reg == MEM_AP_BASE ? "BASE" :
-                reg == MEM_AP_IDR  ? "IDR" : "???", reg);
+                MEM_AP_REGNAME(reg), reg);
         return 0;
     }
     unsigned value = reply >> 3;
     if (debug_level > 1) {
         fprintf (stderr, "MEM-AP read %08x from %s (%02x)\n", value,
-            reg == MEM_AP_CSW  ? "CSW" :
-            reg == MEM_AP_TAR  ? "TAR" :
-            reg == MEM_AP_DRW  ? "DRW" :
-            reg == MEM_AP_BD0  ? "BD0" :
-            reg == MEM_AP_BD1  ? "BD1" :
-            reg == MEM_AP_BD2  ? "BD2" :
-            reg == MEM_AP_BD3  ? "BD3" :
-            reg == MEM_AP_CFG  ? "CFG" :
-            reg == MEM_AP_BASE ? "BASE" :
-            reg == MEM_AP_IDR  ? "IDR" : "???", reg);
+            MEM_AP_REGNAME(reg), reg);
     }
     return value;
 }

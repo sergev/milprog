@@ -32,6 +32,10 @@
 #define DP_SELECT		0x8	/* AP select (r/w) */
 #define DP_RDBUFF		0xC	/* Read buffer (read-only) */
 
+#define DP_REGNAME(reg) (reg) == DP_ABORT ? "ABORT" : \
+                        (reg) == DP_CTRL_STAT ? "CTRL/STAT" : \
+                        (reg) == DP_SELECT ? "SELECT" : \
+                        (reg) == DP_RDBUFF ? "RDBUFF" : "???"
 /*
  * Fields of the DP_CTRL_STAT register.
  */
@@ -63,6 +67,16 @@
 #define MEM_AP_BASE             0xF8    /* Debug base address (read-only) */
 #define MEM_AP_IDR              0xFC    /* Identification (read-only) */
 
+#define MEM_AP_REGNAME(reg) (reg) == MEM_AP_CSW  ? "CSW" : \
+                            (reg) == MEM_AP_TAR  ? "TAR" : \
+                            (reg) == MEM_AP_DRW  ? "DRW" : \
+                            (reg) == MEM_AP_BD0  ? "BD0" : \
+                            (reg) == MEM_AP_BD1  ? "BD1" : \
+                            (reg) == MEM_AP_BD2  ? "BD2" : \
+                            (reg) == MEM_AP_BD3  ? "BD3" : \
+                            (reg) == MEM_AP_CFG  ? "CFG" : \
+                            (reg) == MEM_AP_BASE ? "BASE" : \
+                            (reg) == MEM_AP_IDR  ? "IDR" : "???"
 /*
  * Fields of the MEM_AP_CSW register for Cortex-M3.
  */
@@ -111,17 +125,6 @@
 #define S_LOCKUP                (1 << 19)
 #define S_RETIRE_ST             (1 << 24)
 #define S_RESET_ST              (1 << 25)
-
-/* DCB_DEMCR bit and field definitions */
-#define	TRCENA			(1 << 24)
-#define	VC_HARDERR		(1 << 10)
-#define	VC_INTERR		(1 << 9)
-#define	VC_BUSERR		(1 << 8)
-#define	VC_STATERR		(1 << 7)
-#define	VC_CHKERR		(1 << 6)
-#define	VC_NOCPERR		(1 << 5)
-#define	VC_MMERR		(1 << 4)
-#define	VC_CORERESET            (1 << 0)
 
 /*
  * Milandr 1986BE9x register definitions.
