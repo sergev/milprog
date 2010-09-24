@@ -113,7 +113,7 @@ static void bulk_write (mpsse_adapter_t *a, unsigned char *output, int nbytes)
 {
     int bytes_written;
 
-    if (debug_level > 2) {
+    if (debug_level > 1) {
         int i;
         fprintf (stderr, "usb bulk write %d bytes:", nbytes);
         for (i=0; i<nbytes; i++)
@@ -129,7 +129,6 @@ static void bulk_write (mpsse_adapter_t *a, unsigned char *output, int nbytes)
     if (bytes_written != nbytes)
         fprintf (stderr, "usb bulk written %d bytes of %d",
             bytes_written, nbytes);
-
 }
 
 /*
@@ -158,7 +157,7 @@ static void mpsse_flush_output (mpsse_adapter_t *a)
             fprintf (stderr, "usb bulk read failed\n");
             exit (-1);
         }
-        if (debug_level > 2) {
+        if (debug_level > 1) {
             if (n != a->bytes_to_read + 2)
                 fprintf (stderr, "usb bulk read %d bytes of %d\n",
                     n, a->bytes_to_read - bytes_read + 2);
@@ -176,7 +175,7 @@ static void mpsse_flush_output (mpsse_adapter_t *a)
             bytes_read += n - 2;
         }
     }
-    if (debug_level > 2) {
+    if (debug_level > 1) {
         int i;
         fprintf (stderr, "mpsse_flush_output received %d bytes:", a->bytes_to_read);
         for (i=0; i<a->bytes_to_read; i++)
@@ -617,9 +616,6 @@ failed: usb_release_interface (a->usbdev, 0);
     /* Ровно 500 нсек между выдачами. */
     unsigned divisor = 3;
     unsigned char latency_timer = 1;
-
-//unsigned divisor = 20-1;
-//unsigned char latency_timer = 8;
 
     if (usb_control_msg (a->usbdev,
         USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT,

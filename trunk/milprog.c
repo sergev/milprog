@@ -113,7 +113,7 @@ int read_srec (char *filename, unsigned char *output)
         if (buf[0] != 'S') {
             if (output_len == 0)
                 break;
-            fprintf (stderr, _("%s: bad file format\n"), filename);
+            fprintf (stderr, _("%s: bad SREC file format\n"), filename);
             exit (1);
         }
         if (buf[1] == '7' || buf[1] == '8' || buf[1] == '9')
@@ -172,6 +172,108 @@ int read_srec (char *filename, unsigned char *output)
                 output_len = address;
             break;
         }
+    }
+    fclose (fd);
+    return output_len;
+}
+
+/*
+ * Read HEX file.
+ */
+int read_hex (char *filename, unsigned char *output)
+{
+    FILE *fd;
+    unsigned char buf [256], data[16], tag, sum;
+    unsigned address, high;
+    int bytes, output_len, i;
+
+    fd = fopen (filename, "r");
+    if (! fd) {
+        perror (filename);
+        exit (1);
+    }
+    output_len = 0;
+    high = 0;
+    while (fgets ((char*) buf, sizeof(buf), fd)) {
+        if (buf[0] == '\n')
+            continue;
+        if (buf[0] != ':') {
+            if (output_len == 0)
+                break;
+            fprintf (stderr, _("%s: bad HEX file format\n"), filename);
+            exit (1);
+        }
+        if (! isxdigit (buf[1]) || ! isxdigit (buf[2]) ||
+            ! isxdigit (buf[3]) || ! isxdigit (buf[4]) ||
+            ! isxdigit (buf[5]) || ! isxdigit (buf[6]) ||
+            ! isxdigit (buf[7]) || ! isxdigit (buf[8])) {
+            fprintf (stderr, _("%s: bad record: %s\n"), filename, buf);
+            exit (1);
+        }
+	tag = HEX (buf+7);
+	if (tag == 1)
+            break;
+
+	bytes = HEX (buf+1);
+        if (bytes & 1) {
+            fprintf (stderr, _("%s: odd length\n"), filename);
+            exit (1);
+        }
+	if (strlen ((char*) buf) < bytes * 2 + 11) {
+            fprintf (stderr, _("%s: too short hex line\n"), filename);
+            exit (1);
+        }
+	address = high << 16 | HEX (buf+3) << 8 | HEX (buf+5);
+        if (address & 3) {
+            fprintf (stderr, _("%s: odd address\n"), filename);
+            exit (1);
+        }
+
+	sum = 0;
+	for (i=0; i<bytes; ++i) {
+            data [i] = HEX (buf+9 + i + i);
+	    sum += data [i];
+	}
+	sum += tag + bytes + (address & 0xff) + (address >> 8 & 0xff);
+	if (sum != (unsigned char) - HEX (buf+9 + bytes + bytes)) {
+            fprintf (stderr, _("%s: bad hex checksum\n"), filename);
+            exit (1);
+        }
+
+	if (tag == 4) {
+            if (bytes != 2) {
+                fprintf (stderr, _("%s: invalid hex linear address record length\n"),
+                    filename);
+                exit (1);
+            }
+	    high = data[0] << 8 | data[1];
+	    continue;
+	}
+	if (tag) {
+            fprintf (stderr, _("%s: unknown hex record\n"), filename);
+            exit (1);
+        }
+
+        if (! memory_base) {
+            /* Автоматическое определение базового адреса. */
+            memory_base = address;
+        }
+        if (address < memory_base) {
+            fprintf (stderr, _("%s: incorrect address %08X, must be %08X or greater\n"),
+                filename, address, memory_base);
+            exit (1);
+        }
+        address -= memory_base;
+        if (address+bytes > sizeof (memory_data)) {
+            fprintf (stderr, _("%s: address too large: %08X + %08X\n"),
+                filename, address + memory_base, bytes);
+            exit (1);
+        }
+        for (i=0; i<bytes; i++) {
+            output[address++] = data [i];
+        }
+        if (output_len < (int) address)
+            output_len = address;
     }
     fclose (fd);
     return output_len;
@@ -524,14 +626,17 @@ usage:
         printf ("       milprog\n");
         printf ("\nWrite flash memory:\n");
         printf ("       milprog [-v] file.srec\n");
+        printf ("       milprog [-v] file.hex\n");
         printf ("       milprog [-v] file.bin [address]\n");
         printf ("\nWrite static memory:\n");
         printf ("       milprog -w [-v] file.srec\n");
+        printf ("       milprog -w [-v] file.hex\n");
         printf ("       milprog -w [-v] file.bin [address]\n");
         printf ("\nRead memory:\n");
         printf ("       milprog -r file.bin address length\n");
         printf ("\nArgs:\n");
-        printf ("       file.srec           Code file SREC format\n");
+        printf ("       file.srec           Code file in SREC format\n");
+        printf ("       file.hex            Code file in HEX format\n");
         printf ("       file.bin            Code file in binary format\n");
         printf ("       address             Address of flash memory, default 0x%08X\n",
             DEFAULT_ADDR);
@@ -557,8 +662,11 @@ usage:
     case 1:
         memory_len = read_srec (argv[0], memory_data);
         if (memory_len == 0) {
-            memory_base = DEFAULT_ADDR;
-            memory_len = read_bin (argv[0], memory_data);
+            memory_len = read_hex (argv[0], memory_data);
+            if (memory_len == 0) {
+                memory_base = DEFAULT_ADDR;
+                memory_len = read_bin (argv[0], memory_data);
+            }
         }
         if (memory_write_mode)
             do_write ();

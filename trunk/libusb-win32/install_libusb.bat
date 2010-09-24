@@ -1,2 +1,3 @@
 devcon.exe rescan
-devcon.exe -r update elvees_usb_jtag.inf "USB\VID_0547&PID_1002"
+devcon.exe -r update olimex_tiny.inf "USB\VID_15BA&PID_0004&MI_00"
+devcon.exe -r update olimex_tiny1.inf "USB\VID_15BA&PID_0004&MI_01"
