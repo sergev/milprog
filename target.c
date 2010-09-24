@@ -157,16 +157,23 @@ target_t *target_open (int need_reset)
     }
 
     /* Останавливаем процессор. */
-    for (;;) {
+    unsigned retry;
+    for (retry=0; ; ++retry) {
         target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN |
             C_HALT | C_MASKINTS | C_SNAPSTALL);
         t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
-        if (t->adapter->stalled)
+        if (t->adapter->stalled) {
+fprintf (stderr, "Cannot write DHCSR... "); fflush (stderr);
+            if (retry > 200) {
+                fprintf (stderr, "Cannot write to DHCSR, aborted\n");
+                t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
+                t->adapter->close (t->adapter);
+                exit (1);
+            }
             continue;
+        }
 
         unsigned dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
-        if (t->adapter->stalled)
-            continue;
         if (dhcsr == (C_DEBUGEN | C_HALT | C_MASKINTS | C_SNAPSTALL |
                       S_REGRDY | S_HALT)) {
             break;
