@@ -183,7 +183,7 @@ int read_srec (char *filename, unsigned char *output)
 int read_hex (char *filename, unsigned char *output)
 {
     FILE *fd;
-    unsigned char buf [256], data[16], tag, sum;
+    unsigned char buf [256], data[16], record_type, sum;
     unsigned address, high;
     int bytes, output_len, i;
 
@@ -210,9 +210,15 @@ int read_hex (char *filename, unsigned char *output)
             fprintf (stderr, _("%s: bad record: %s\n"), filename, buf);
             exit (1);
         }
-	tag = HEX (buf+7);
-	if (tag == 1)
+	record_type = HEX (buf+7);
+	if (record_type == 1) {
+	    /* End of file. */
             break;
+        }
+	if (record_type == 5) {
+	    /* Start address, ignore. */
+	    continue;
+	}
 
 	bytes = HEX (buf+1);
         if (bytes & 1) {
@@ -234,13 +240,14 @@ int read_hex (char *filename, unsigned char *output)
             data [i] = HEX (buf+9 + i + i);
 	    sum += data [i];
 	}
-	sum += tag + bytes + (address & 0xff) + (address >> 8 & 0xff);
+	sum += record_type + bytes + (address & 0xff) + (address >> 8 & 0xff);
 	if (sum != (unsigned char) - HEX (buf+9 + bytes + bytes)) {
             fprintf (stderr, _("%s: bad hex checksum\n"), filename);
             exit (1);
         }
 
-	if (tag == 4) {
+	if (record_type == 4) {
+	    /* Extended address. */
             if (bytes != 2) {
                 fprintf (stderr, _("%s: invalid hex linear address record length\n"),
                     filename);
@@ -249,11 +256,13 @@ int read_hex (char *filename, unsigned char *output)
 	    high = data[0] << 8 | data[1];
 	    continue;
 	}
-	if (tag) {
-            fprintf (stderr, _("%s: unknown hex record\n"), filename);
+	if (record_type != 0) {
+            fprintf (stderr, _("%s: unknown hex record type: %d\n"),
+                filename, record_type);
             exit (1);
         }
 
+        /* Data record found. */
         if (! memory_base) {
             /* Автоматическое определение базового адреса. */
             memory_base = address;
