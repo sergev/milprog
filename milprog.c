@@ -516,6 +516,17 @@ void do_read (char *filename)
     fclose (fd);
 }
 
+void do_erase_block (unsigned addr)
+{
+    target = target_open (1);
+    if (! target) {
+        fprintf (stderr, _("Error detecting device -- check cable!\n"));
+        exit (1);
+    }
+
+    target_erase_block (target, addr);
+}
+
 /*
  * Print copying part of license
  */
@@ -564,7 +575,8 @@ static void gpl_show_warranty (void)
 
 int main (int argc, char **argv)
 {
-    int ch, read_mode = 0, memory_write_mode = 0;
+    int ch, read_mode = 0, memory_write_mode = 0, erase_mode = 0;
+    unsigned erase_addr = 0;
     static const struct option long_options[] = {
         { "help",        0, 0, 'h' },
         { "warranty",    0, 0, 'W' },
@@ -598,7 +610,7 @@ int main (int argc, char **argv)
 #endif
     signal (SIGTERM, interrupted);
 
-    while ((ch = getopt_long (argc, argv, "vDhrwCVW",
+    while ((ch = getopt_long (argc, argv, "vDhrwe:CVW",
       long_options, 0)) != -1) {
         switch (ch) {
         case 'v':
@@ -612,6 +624,10 @@ int main (int argc, char **argv)
             continue;
         case 'w':
             ++memory_write_mode;
+            continue;
+        case 'e':
+            ++erase_mode;
+            erase_addr = strtoul (optarg, 0, 0);
             continue;
         case 'h':
             break;
@@ -666,7 +682,12 @@ usage:
 
     switch (argc) {
     case 0:
-        do_probe ();
+        if (erase_mode) {
+            do_erase_block (erase_addr);
+            break;
+        } else {
+            do_probe ();
+        }
         break;
     case 1:
         memory_len = read_srec (argv[0], memory_data);

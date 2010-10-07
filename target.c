@@ -279,6 +279,43 @@ int target_erase (target_t *t, unsigned addr)
 }
 
 /*
+ * Стирание одного блока памяти
+ */
+int target_erase_block (target_t *t, unsigned addr)
+{
+    printf (_("Erase block: %08X..."), addr);
+    fflush (stdout);
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // set CON
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551);
+    target_write_word (t, EEPROM_DI, 0);
+
+    target_write_word (t, EEPROM_ADR, addr);
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                      EEPROM_CMD_WR);       // set WR
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear WR
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                      EEPROM_CMD_XE |       // set XE
+                                      EEPROM_CMD_ERASE);    // set ERASE
+    mdelay (1);                                             // 5 us
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                      EEPROM_CMD_XE |
+                                      EEPROM_CMD_ERASE |
+                                      EEPROM_CMD_NVSTR);    // set NVSTR
+    mdelay (40);                                            // 40 ms
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                      EEPROM_CMD_XE |
+                                      EEPROM_CMD_NVSTR);    // clear ERASE
+    mdelay (1);                                             // 5 us
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear XE, NVSTR
+    mdelay (1);                                             // 1 us
+
+    target_write_word (t, EEPROM_CMD, 0);                   // clear CON
+    printf (_(" done\n"));
+    return 1;
+}
+
+/*
  * Чтение данных из памяти.
  */
 void target_read_block (target_t *t, unsigned addr,
