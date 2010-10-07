@@ -26,6 +26,7 @@ unsigned target_flash_width (target_t *mc);
 unsigned target_flash_bytes (target_t *mc);
 
 int target_erase (target_t *mc, unsigned addr);
+int target_erase_block (target_t *t, unsigned addr);
 void target_program_block (target_t *mc, unsigned addr,
 	unsigned nwords, unsigned *data);
 
