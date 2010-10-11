@@ -644,6 +644,9 @@ failed: usb_release_interface (a->usbdev, 0);
     unsigned char enable_loopback[] = "\x85";
     bulk_write (a, enable_loopback, 1);
 
+    mpsse_reset (a, 1, 1, 1);
+    mpsse_reset (a, 0, 0, 1);
+
     /* Reset the JTAG TAP controller. */
     mpsse_send (a, 6, 31, 0, 0, 0);         /* TMS 1-1-1-1-1-0 */
 
