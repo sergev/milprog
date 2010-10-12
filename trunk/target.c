@@ -117,6 +117,7 @@ target_t *target_open (int need_reset)
         t->adapter->close (t->adapter);
         exit (1);
     }
+    t->adapter->reset_cpu (t->adapter);
 
     /* Включение питания блока отладки, сброс залипающих ошибок. */
     unsigned ctl = CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
@@ -239,17 +240,35 @@ unsigned target_flash_bytes (target_t *t)
 }
 
 /*
+ * На образцах 1986ВЕ91Т с маркировкой "1030" после прошивки
+ * каждого блока чтение первых 4-х слов даёт FFFFFFFF.
+ * Вероятно, мешает буфер кэш-памяти.
+ * Следующий цикл устраняет этот эффект.
+ */
+static void clear_cache (target_t *t, unsigned addr)
+{
+    unsigned i;
+
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, addr);
+    for (i=0; i<9; i++) {
+        t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
+    }
+}
+
+/*
  * Стирание всей flash-памяти.
  */
 int target_erase (target_t *t, unsigned addr)
 {
+    unsigned i;
+
     printf (_("Erase: %08X..."), t->flash_addr);
     fflush (stdout);
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);          // set CON
     target_write_word (t, EEPROM_KEY, 0x8AAA5551);
-    target_write_word (t, EEPROM_DI, 0);
-    for (addr=0; addr<16; addr+=4) {
-	target_write_word (t, EEPROM_ADR, addr);
+    target_write_word (t, EEPROM_DI, ~0);
+    for (i=0; i<16; i+=4) {
+	target_write_word (t, EEPROM_ADR, i);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_WR);       // set WR
@@ -274,6 +293,7 @@ int target_erase (target_t *t, unsigned addr)
 	mdelay (1);                                             // 1 us
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
+    clear_cache (t, addr);
     printf (_(" done\n"));
     return 1;
 }
@@ -283,34 +303,37 @@ int target_erase (target_t *t, unsigned addr)
  */
 int target_erase_block (target_t *t, unsigned addr)
 {
+    unsigned i;
+
     printf (_("Erase block: %08X..."), addr);
     fflush (stdout);
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // set CON
     target_write_word (t, EEPROM_KEY, 0x8AAA5551);
-    target_write_word (t, EEPROM_DI, 0);
-
-    target_write_word (t, EEPROM_ADR, addr);
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
-                                      EEPROM_CMD_WR);       // set WR
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear WR
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
-                                      EEPROM_CMD_XE |       // set XE
-                                      EEPROM_CMD_ERASE);    // set ERASE
-    mdelay (1);                                             // 5 us
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
-                                      EEPROM_CMD_XE |
-                                      EEPROM_CMD_ERASE |
-                                      EEPROM_CMD_NVSTR);    // set NVSTR
-    mdelay (40);                                            // 40 ms
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
-                                      EEPROM_CMD_XE |
-                                      EEPROM_CMD_NVSTR);    // clear ERASE
-    mdelay (1);                                             // 5 us
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear XE, NVSTR
-    mdelay (1);                                             // 1 us
-
+    target_write_word (t, EEPROM_DI, ~0);
+    for (i=0; i<16; i+=4) {
+        target_write_word (t, EEPROM_ADR, addr + i);
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_WR);       // set WR
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear WR
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |       // set XE
+                                          EEPROM_CMD_ERASE);    // set ERASE
+        mdelay (1);                                             // 5 us
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_ERASE |
+                                          EEPROM_CMD_NVSTR);    // set NVSTR
+        mdelay (40);                                            // 40 ms
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_NVSTR);    // clear ERASE
+        mdelay (1);                                             // 5 us
+        target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear XE, NVSTR
+        mdelay (1);                                             // 1 us
+    }
     target_write_word (t, EEPROM_CMD, 0);                   // clear CON
+    clear_cache (t, addr);
     printf (_(" done\n"));
     return 1;
 }
@@ -404,14 +427,5 @@ void target_program_block (target_t *t, unsigned pageaddr,
 	//mdelay (1);                                           // 5 us
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
-
-    /* На образцах 1986ВЕ91Т с маркировкой "1030"
-     * после прошивки каждого блока чтение первых 4-х слов
-     * даёт почему-то FFFFFFFF. Причина непонятна.
-     * Следующий цикл устраняет этот эффект. */
-    t->adapter->mem_ap_write (t->adapter, MEM_AP_TAR, pageaddr);
-    for (i=0; i<9; i++) {
-        t->adapter->mem_ap_read (t->adapter, MEM_AP_DRW);
-//        fprintf (stderr, "addr %08x read %08x\n", pageaddr+i*4, word);
-    }
+    clear_cache (t, pageaddr);
 }

@@ -392,7 +392,7 @@ void do_program (char *filename)
 
     if (! verify_only) {
         /* Erase flash. */
-            target_erase (target, memory_base);
+        target_erase (target, memory_base);
     }
     for (progress_step=1; ; progress_step<<=1) {
         len = 1 + memory_len / progress_step / BLOCKSZ;
