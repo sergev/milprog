@@ -101,8 +101,19 @@
 /*
  * Cortex-M3 registers.
  */
-#define CPUID                   0xE000ED00
+#define SYSTICK_CTRL            0xE000E010
 #define ICER0                   0xE000E180      /* Запрет прерываний */
+#define ICPR0                   0xE000E280      /* Сброс прерываний */
+#define CPUID                   0xE000ED00
+#define AIRCR                   0xE000ED0C
+
+/*
+ * Регистр SCB AIRCR: управление прерываниями и программный сброс.
+ */
+#define ARM_AIRCR_VECTKEY	(0x05FA << 16)	/* ключ доступа к регистру */
+#define ARM_AIRCR_ENDIANESS	(1 << 15)	/* старший байт идет первым */
+#define ARM_AIRCR_PRIGROUP(n)	((n) << 8)	/* группировка приоритетов исключений */
+#define ARM_AIRCR_SYSRESETREQ	(1 << 2)	/* запрос сброса системы */
 
 /* Debug Control Block */
 #define DCB_DHCSR               0xE000EDF0
@@ -130,6 +141,8 @@
  * Milandr 1986BE9x register definitions.
  */
 #define PER_CLOCK               0x4002001C      /* Разрешение тактовой частоты */
+#define UART1_CR                0x40030030
+#define UART2_CR                0x40038030
 
 #define EEPROM_CMD		0x40018000	/* Управление Flash-памятью */
 #define EEPROM_ADR		0x40018004	/* Адрес (словный) */
