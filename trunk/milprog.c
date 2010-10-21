@@ -347,7 +347,7 @@ void write_block (target_t *mc, unsigned addr, int len)
         (len + 3) / 4, (unsigned*) (memory_data + addr));
 }
 
-void verify_block (target_t *mc, unsigned addr, int len)
+int verify_block (target_t *mc, unsigned addr, int len)
 {
     int i;
     unsigned word, expected, block [BLOCKSZ/4];
@@ -369,6 +369,7 @@ void verify_block (target_t *mc, unsigned addr, int len)
             exit (1);
         }
     }
+    return 1;
 }
 
 void do_program (char *filename)
@@ -413,7 +414,8 @@ void do_program (char *filename)
         if (! verify_only)
             program_block (target, addr, len);
         progress ();
-        verify_block (target, addr, len);
+        if (! verify_block (target, addr, len))
+            exit (0);
     }
     printf (_("# done\n"));
     printf (_("Rate: %ld bytes per second\n"),
@@ -457,7 +459,8 @@ void do_write ()
         if (! verify_only)
             write_block (target, addr, len);
         progress ();
-        verify_block (target, addr, len);
+        if (! verify_block (target, addr, len))
+            exit (0);
     }
     printf (_("# done\n"));
     printf (_("Rate: %ld bytes per second\n"),

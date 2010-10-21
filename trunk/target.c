@@ -160,11 +160,15 @@ target_t *target_open (int need_reset)
     /* Останавливаем процессор. */
     unsigned retry;
     for (retry=0; ; ++retry) {
+        target_write_word (t, AIRCR, ARM_AIRCR_VECTKEY | ARM_AIRCR_SYSRESETREQ);
+        target_write_word (t, AIRCR, ARM_AIRCR_VECTKEY);
+
         target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN |
             C_HALT | C_MASKINTS | C_SNAPSTALL);
         t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
         if (t->adapter->stalled) {
 fprintf (stderr, "Cannot write DHCSR... "); fflush (stderr);
+            t->adapter->reset_cpu (t->adapter);
             if (retry > 200) {
                 fprintf (stderr, "Cannot write to DHCSR, aborted\n");
                 t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
