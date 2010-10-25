@@ -1,5 +1,5 @@
 #CC		= gcc
-#CC		= i586-mingw32msvc-gcc
+CC		= i586-mingw32msvc-gcc
 CFLAGS		= -Wall -g -O -DMINGW32 -Ilibusb-win32
 LDFLAGS		= -s
 LIBS		= -Llibusb-win32 -lusb -lintl
