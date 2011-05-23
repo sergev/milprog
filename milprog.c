@@ -376,6 +376,7 @@ void do_program (char *filename)
 {
     unsigned addr;
     int len;
+    int progress_len;
     void *t0;
 
     printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
@@ -396,23 +397,47 @@ void do_program (char *filename)
         target_erase (target, memory_base);
     }
     for (progress_step=1; ; progress_step<<=1) {
-        len = 1 + memory_len / progress_step / BLOCKSZ;
-        if (len < 64)
+        progress_len = 1 + memory_len / progress_step / BLOCKSZ;
+        if (progress_len < 64)
             break;
     }
-    printf (verify_only ? _("Verify: ") : _("Program: "));
-    print_symbols ('.', len);
-    print_symbols ('\b', len);
-    fflush (stdout);
 
     progress_count = 0;
     t0 = fix_time ();
+    if (! verify_only) {
+	printf (_("Program: "));
+        print_symbols ('.', progress_len);
+        print_symbols ('\b', progress_len);
+        fflush (stdout);
+        for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
+            len = BLOCKSZ;
+            if (memory_len - addr < len)
+                len = memory_len - addr;
+            if (! verify_only)
+                program_block (target, addr, len);
+            progress ();
+        }
+        printf (_("# done\n"));
+    }
+
+    target_close (target);
+    free (target);
+
+    target = target_open (1);
+    if (! target) {
+        fprintf (stderr, _("Error detecting device -- check cable!\n"));
+        exit (1);
+    }
+
+    printf (_("Verify:  "));
+    print_symbols ('.', progress_len);
+    print_symbols ('\b', progress_len);
+    fflush (stdout);
+
     for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
         len = BLOCKSZ;
         if (memory_len - addr < len)
             len = memory_len - addr;
-        if (! verify_only)
-            program_block (target, addr, len);
         progress ();
         if (! verify_block (target, addr, len))
             exit (0);
@@ -426,6 +451,7 @@ void do_write ()
 {
     unsigned addr;
     int len;
+    int progress_len;
     void *t0;
 
     printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
@@ -441,23 +467,47 @@ void do_write ()
     printf (_("Processor: %s\n"), target_cpu_name (target));
 
     for (progress_step=1; ; progress_step<<=1) {
-        len = 1 + memory_len / progress_step / BLOCKSZ;
-        if (len < 64)
+        progress_len = 1 + memory_len / progress_step / BLOCKSZ;
+        if (progress_len < 64)
             break;
     }
-    printf (verify_only ? _("Verify: ") : _("Write: "));
-    print_symbols ('.', len);
-    print_symbols ('\b', len);
-    fflush (stdout);
 
     progress_count = 0;
     t0 = fix_time ();
+    if (! verify_only) {
+	printf (_("Write:   "));
+        print_symbols ('.', progress_len);
+        print_symbols ('\b', progress_len);
+        fflush (stdout);
+        for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
+            len = BLOCKSZ;
+            if (memory_len - addr < len)
+                len = memory_len - addr;
+            if (! verify_only)
+                program_block (target, addr, len);
+            progress ();
+        }
+        printf (_("# done\n"));
+    }
+
+    target_close (target);
+    free (target);
+
+    target = target_open (1);
+    if (! target) {
+        fprintf (stderr, _("Error detecting device -- check cable!\n"));
+        exit (1);
+    }
+
+    printf (_("Verify:  "));
+    print_symbols ('.', progress_len);
+    print_symbols ('\b', progress_len);
+    fflush (stdout);
+
     for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
         len = BLOCKSZ;
         if (memory_len - addr < len)
             len = memory_len - addr;
-        if (! verify_only)
-            write_block (target, addr, len);
         progress ();
         if (! verify_block (target, addr, len))
             exit (0);

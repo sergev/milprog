@@ -432,4 +432,5 @@ void target_program_block (target_t *t, unsigned pageaddr,
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
     clear_cache (t, pageaddr);
+    mdelay (10);
 }

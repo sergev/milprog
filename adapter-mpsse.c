@@ -66,7 +66,8 @@ typedef struct {
  * Identifiers of USB adapter.
  */
 #define OLIMEX_VID              0x15ba
-#define OLIMEX_PID              0x0004  /* ARM-USB-Tiny */
+#define OLIMEX_ARM_USB_TINY     0x0004  /* ARM-USB-Tiny */
+#define OLIMEX_ARM_USB_TINY_H   0x002a
 
 /*
  * USB endpoints.
@@ -432,13 +433,15 @@ static unsigned mpsse_dp_read (adapter_t *adapter, int reg)
 
     /* Предыдущая транзакция MEM-AP могла завершиться неуспешно.
      * Анализируем ответ WAIT. */
-    adapter->stalled = ((unsigned) reply & 7) != 2;
+    adapter->stalled = (((unsigned) reply & 7) != 2) && (((unsigned) reply & 7) != 1);
+    //adapter->stalled = ((unsigned) reply & 7) != 2;
     if (adapter->stalled) {
         if (debug_level > 1)
             fprintf (stderr, "DP read <<<WAIT>>> from %s (%02x)\n",
                 DP_REGNAME(reg), reg);
         return 0;
     }
+
     unsigned value = reply >> 3;
     if (debug_level > 1) {
         fprintf (stderr, "DP read %08x from %s (%02x)\n", value,
@@ -567,7 +570,8 @@ adapter_t *adapter_open_mpsse (void)
     for (bus = usb_get_busses(); bus; bus = bus->next) {
         for (dev = bus->devices; dev; dev = dev->next) {
             if (dev->descriptor.idVendor == OLIMEX_VID &&
-                dev->descriptor.idProduct == OLIMEX_PID)
+                (dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY ||
+                 dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY_H))
                 goto found;
         }
     }
