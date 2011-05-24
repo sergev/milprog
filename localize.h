@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010 Serge Vakulenko
  */
-#if 0
+#if 1
     /* Никакой локализации, всё по-английски. */
     #define _(str)                      (str)
     #define N_(str)                     str
