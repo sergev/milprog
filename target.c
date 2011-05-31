@@ -86,6 +86,7 @@ target_t *target_open (int need_reset)
 {
     target_t *t;
     unsigned idcode;
+    unsigned dhcsr;
 
     t = calloc (1, sizeof (target_t));
     if (! t) {
@@ -167,7 +168,7 @@ target_t *target_open (int need_reset)
             C_HALT | C_MASKINTS | C_SNAPSTALL);
         t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
         if (t->adapter->stalled) {
-fprintf (stderr, "Cannot write DHCSR... "); fflush (stderr);
+        	fprintf (stderr, "Cannot write DHCSR... "); fflush (stderr);
             t->adapter->reset_cpu (t->adapter);
             if (retry > 200) {
                 fprintf (stderr, "Cannot write to DHCSR, aborted\n");
@@ -178,18 +179,24 @@ fprintf (stderr, "Cannot write DHCSR... "); fflush (stderr);
             continue;
         }
 
-        unsigned dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+        dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+        // printf("S.I.(1): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
         if (dhcsr == (C_DEBUGEN | C_HALT | C_MASKINTS | C_SNAPSTALL |
                       S_REGRDY | S_HALT)) {
             break;
         }
-        /* Сброс блока отладки. */
+        /* Сброс блока отладки */
         t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
         t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
     }
 
+    	// dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+    	// printf("S.I.(2): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
+
     /* Проверяем идентификатор процессора. */
     t->cpuid = target_read_word (t, CPUID);
+    	// dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+    	// printf("S.I.(3): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
     switch (t->cpuid) {
     case 0x412fc230:    /* Миландр 1986ВМ91Т */
         t->cpu_name = _("Milandr 1986BM91T");
@@ -265,23 +272,27 @@ static void clear_cache (target_t *t, unsigned addr)
 int target_erase (target_t *t, unsigned addr)
 {
     unsigned i;
+    unsigned dhcsr;
 
+    dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+    // printf("S.I.(4): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
     printf (_("Erase: %08X..."), t->flash_addr);
     fflush (stdout);
-    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);          // set CON
-    target_write_word (t, EEPROM_KEY, 0x8AAA5551);
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551);		//enable access to EEPROM registers
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);  // set CON
     target_write_word (t, EEPROM_DI, ~0);
+
     for (i=0; i<16; i+=4) {
 	target_write_word (t, EEPROM_ADR, i);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_WR);       // set WR
-	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear WR
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      	// clear WR
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_MAS1 |     // set MAS1
                                           EEPROM_CMD_XE |       // set XE
                                           EEPROM_CMD_ERASE);    // set ERASE
-	mdelay (1);                                             // 5 us
+	// mdelay (1);                                             	// 5 us
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_MAS1 |
                                           EEPROM_CMD_XE |
@@ -292,13 +303,15 @@ int target_erase (target_t *t, unsigned addr)
                                           EEPROM_CMD_MAS1 |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_NVSTR);    // clear ERASE
-	mdelay (1);                                             // 100 us
-	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear XE, NVSTR, MAS1
-	mdelay (1);                                             // 1 us
+	// mdelay (1);                                             	// 100 us
+	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);			// clear XE, NVSTR, MAS1
+	// mdelay (1);                                             	// 1 us
     }
     target_write_word (t, EEPROM_CMD, 0);                       // clear CON
     clear_cache (t, addr);
     printf (_(" done\n"));
+    dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+    // printf("S.I.(5): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
     return 1;
 }
 
@@ -311,8 +324,9 @@ int target_erase_block (target_t *t, unsigned addr)
 
     printf (_("Erase block: %08X..."), addr);
     fflush (stdout);
+    // next 2 lines were swapped - S.I
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551); // enable access to EEPROM registers
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // set CON
-    target_write_word (t, EEPROM_KEY, 0x8AAA5551);
     target_write_word (t, EEPROM_DI, ~0);
     for (i=0; i<16; i+=4) {
         target_write_word (t, EEPROM_ADR, addr + i);
@@ -388,49 +402,57 @@ void target_program_block (target_t *t, unsigned pageaddr,
     unsigned nwords, unsigned *data)
 {
     unsigned i;
+    //unsigned dhcsr;
 
+    //dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+    //printf("S.I.(5): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
+
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551);			// enable register access to EEPROM regs
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);		// set CON
-    target_write_word (t, EEPROM_KEY, 0x8AAA5551);
+
     for (i=0; i<nwords; i++) {
-        target_write_word (t, EEPROM_ADR, pageaddr + i*4);
-        //delay (1);                                            // 10 us
+    target_write_word (t, EEPROM_ADR, pageaddr + i*4);
+    //mdelay (1);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |	// set XE
-                                          EEPROM_CMD_PROG);     // set PROG
-	//mdelay (1);                                           // 5 us
+                                          EEPROM_CMD_PROG); // set PROG
+	//mdelay (1);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR);	// set NVSTR
+                                          EEPROM_CMD_NVSTR);// set NVSTR
 	target_write_word (t, EEPROM_DI, data [i]);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
                                           EEPROM_CMD_NVSTR |
-                                          EEPROM_CMD_WR);       // set WR
+                                          EEPROM_CMD_WR);   // set WR
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR);	// clear WR
-	//mdelay (1); 					        // 10 us
+                                          EEPROM_CMD_NVSTR);// clear WR
+	//mdelay (1);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
                                           EEPROM_CMD_NVSTR |
                                           EEPROM_CMD_YE);	// set YE
-	//mdelay (1);                                           // 40 us
+	//mdelay (1);
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR);	// clear YE
+                                          EEPROM_CMD_NVSTR);// clear YE
 	target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
-                                          EEPROM_CMD_NVSTR);	// clear PROG
-	//mdelay (1);                                           // 5 us
+                                          EEPROM_CMD_NVSTR);// clear PROG
+	//mdelay (1);
         target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);	// clear XE, NVSTR
-	//mdelay (1);                                           // 5 us
+	//mdelay (1);
     }
-    target_write_word (t, EEPROM_CMD, 0);                       // clear CON
+    target_write_word (t, EEPROM_CMD, 0);                   // clear CON
+
+  //  dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+  //  printf("S.I.(5): DHCSR is %08x\n",dhcsr); fflush(stdout); // S.I. - DHCSR trace
+
     clear_cache (t, pageaddr);
-    mdelay (10);
 }
