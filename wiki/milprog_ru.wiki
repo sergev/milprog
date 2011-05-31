@@ -5,7 +5,7 @@
 ([http://milandr.ru/index.php?mact=Products,cntnt01,details,0&cntnt01productid=13&cntnt01returnid=68 1986ВМ91Т],
 [http://milandr.ru/index.php?mact=Products,cntnt01,details,0&cntnt01productid=57&cntnt01returnid=68 1986ВМ92УТ],
 [http://milandr.ru/index.php?mact=Products,cntnt01,details,0&cntnt01productid=58&cntnt01returnid=68 1986ВМ93У]).
-В качестве программатора используется [http://www.olimex.com/dev/arm-usb-tiny.html адаптер Olimex ARM-USB-Tiny].
+В качестве программатора используется [http://www.olimex.com/dev/arm-usb-tiny.html адаптер Olimex ARM-USB-Tiny] или [http://www.olimex.com/dev/arm-usb-tiny-h.html адаптер Olimex ARM-USB-Tiny-H].
 
 [http://milprog.googlecode.com/svn/wiki/images/arm-usb-tiny.jpg]
 
