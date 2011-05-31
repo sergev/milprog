@@ -29,7 +29,7 @@
 #include "target.h"
 #include "localize.h"
 
-#define VERSION         "1.0"
+#define VERSION         "1.1"
 #define BLOCKSZ         1024
 #define DEFAULT_ADDR    0x08000000
 
@@ -656,7 +656,7 @@ int main (int argc, char **argv)
     setvbuf (stderr, (char *)NULL, _IOLBF, 0);
     printf (_("Programmer for Milandr ARM microcontrollers, Version %s\n"), VERSION);
     progname = argv[0];
-    copyright = _("Copyright (C) 2010 Serge Vakulenko");
+    copyright = _("Copyright (C) 2010, 2011 Serge Vakulenko");
     signal (SIGINT, interrupted);
 #ifdef __linux__
     signal (SIGHUP, interrupted);

@@ -26,7 +26,7 @@
 #include "arm-jtag.h"
 
 typedef struct {
-    /* Общая часть. */
+    /* Общая часть */
     adapter_t adapter;
 
     /* Доступ к устройству через libusb. */
@@ -67,7 +67,7 @@ typedef struct {
  */
 #define OLIMEX_VID              0x15ba
 #define OLIMEX_ARM_USB_TINY     0x0004  /* ARM-USB-Tiny */
-#define OLIMEX_ARM_USB_TINY_H   0x002a
+#define OLIMEX_ARM_USB_TINY_H   0x002a	/* ARM-USB-Tiny-H */
 
 /*
  * USB endpoints.
@@ -618,7 +618,8 @@ failed: usb_release_interface (a->usbdev, 0);
     }
 
     /* Ровно 500 нсек между выдачами. */
-    unsigned divisor = 3;
+    //  Was: divisor = 3, latency_timer = 1
+    unsigned divisor = 1;
     unsigned char latency_timer = 1;
 
     if (usb_control_msg (a->usbdev,
@@ -633,13 +634,14 @@ failed: usb_release_interface (a->usbdev, 0);
         fprintf (stderr, "unable to get latency timer\n");
         goto failed;
     }
-    if (debug_level)
-        fprintf (stderr, "MPSSE: latency timer: %u usec\n", latency_timer);
-
+    if (debug_level) {
+    	fprintf (stderr, "MPSSE: divisor: %u\n", divisor);
+    	fprintf (stderr, "MPSSE: latency timer: %u usec\n", latency_timer);
+    }
     mpsse_reset (a, 0, 0, 1);
 
     if (debug_level) {
-        int baud = 6000000 / (divisor + 1);
+     int baud = 6000000 / (divisor + 1);
         fprintf (stderr, "MPSSE: speed %d samples/sec\n", baud);
     }
     mpsse_speed (a, divisor);
