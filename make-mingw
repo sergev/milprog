@@ -1,8 +1,8 @@
 CC		= gcc
 #CC		= i586-mingw32msvc-gcc
-CFLAGS		= -Wall -g -O -DMINGW32 -Ilibusb-win32
+CFLAGS		= -Wall -g -O -DMINGW32 -Ilibusb-win32-bin-1.2.4.0/include
 LDFLAGS		= -s
-LIBS		= -Llibusb-win32/x86 -lusb0_x86
+LIBS		= -Llibusb-win32-bin-1.2.4.0/x86 -lusb0_x86
 
 COMMON_OBJS     = target.o
 COMMON_OBJS	+= adapter-mpsse.o

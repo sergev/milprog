@@ -624,8 +624,13 @@ failed: usb_release_interface (a->usbdev, 0);
     unsigned char latency_timer = 1;
 
     if (jtag_adapter_version == OLIMEX_ARM_USB_TINY) {
+#ifdef _WIN32
+        divisor = 2;
+        latency_timer = 1;
+#else
         divisor = 1;
         latency_timer = 4;
+#endif
     } else if (jtag_adapter_version == OLIMEX_ARM_USB_TINY_H) {
         divisor = 1;
         latency_timer = 0;
