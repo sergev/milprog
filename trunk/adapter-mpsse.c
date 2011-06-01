@@ -620,8 +620,8 @@ failed: usb_release_interface (a->usbdev, 0);
         goto failed;
     }
 
-    unsigned divisor;
-    unsigned char latency_timer;
+    unsigned divisor = 1;
+    unsigned char latency_timer = 1;
 
     if (jtag_adapter_version == OLIMEX_ARM_USB_TINY) {
         divisor = 1;
