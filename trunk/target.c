@@ -121,10 +121,12 @@ target_t *target_open (int need_reset)
     t->adapter->reset_cpu (t->adapter);
 
     /* Включение питания блока отладки, сброс залипающих ошибок. */
+
     unsigned ctl = CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
         SSTICKYORUN | SSTICKYCMP | SSTICKYERR;
     t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
     t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
+    mdelay (10);
 
     /* Выбираем 3-й блок регистров MEM-AP. */
     t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
@@ -227,6 +229,7 @@ void target_close (target_t *t)
 
     /* Пускаем процессор. */
     target_write_word (t, DCB_DHCSR, DBGKEY);
+    mdelay (1); /* Эта задержка нужна для ARM-USB-TINY-H */
     t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
     t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
     t->adapter->dp_read (t->adapter, DP_CTRL_STAT);

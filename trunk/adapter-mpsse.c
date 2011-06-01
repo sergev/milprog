@@ -107,6 +107,8 @@ typedef struct {
 #define RTDO                    0x20
 #define WTMS                    0x40
 
+static unsigned jtag_adapter_version = 0;
+
 /*
  * Посылка пакета данных USB-устройству.
  */
@@ -582,6 +584,7 @@ found:
     /*fprintf (stderr, "found USB adapter: vid %04x, pid %04x, type %03x\n",
         dev->descriptor.idVendor, dev->descriptor.idProduct,
         dev->descriptor.bcdDevice);*/
+    jtag_adapter_version = dev->descriptor.idProduct;
     a = calloc (1, sizeof (*a));
     if (! a) {
         fprintf (stderr, "Out of memory\n");
@@ -617,10 +620,16 @@ failed: usb_release_interface (a->usbdev, 0);
         goto failed;
     }
 
-    /* Ровно 500 нсек между выдачами. */
-    //  Was: divisor = 3, latency_timer = 1
-    unsigned divisor = 1;
-    unsigned char latency_timer = 1;
+    unsigned divisor;
+    unsigned char latency_timer;
+
+    if (jtag_adapter_version == OLIMEX_ARM_USB_TINY) {
+        divisor = 1;
+        latency_timer = 4;
+    } else if (jtag_adapter_version == OLIMEX_ARM_USB_TINY_H) {
+        divisor = 1;
+        latency_timer = 0;
+    }
 
     if (usb_control_msg (a->usbdev,
         USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT,
@@ -641,7 +650,7 @@ failed: usb_release_interface (a->usbdev, 0);
     mpsse_reset (a, 0, 0, 1);
 
     if (debug_level) {
-     int baud = 6000000 / (divisor + 1);
+        int baud = 6000000 / (divisor + 1);
         fprintf (stderr, "MPSSE: speed %d samples/sec\n", baud);
     }
     mpsse_speed (a, divisor);
