@@ -330,14 +330,15 @@ void do_probe ()
     }
     printf (_("Processor: %s (id %08X)\n"), target_cpu_name (target),
         target_idcode (target));
-    printf (_("Flash memory: %d kbytes\n"), target_flash_bytes (target) / 1024);
+    printf (_("Main flash memory: %d kbytes\n"), target_main_flash_bytes (target) / 1024);
+    printf (_("Info flash memory: %d kbytes\n"), target_info_flash_bytes (target) / 1024);
 }
 
-void program_block (target_t *mc, unsigned addr, int len)
+void program_block (target_t *mc, unsigned addr, int len, int info_flash)
 {
     /* Write flash memory. */
     target_program_block (mc, memory_base + addr,
-        (len + 3) / 4, (unsigned*) (memory_data + addr));
+        (len + 3) / 4, (unsigned*) (memory_data + addr), info_flash);
 }
 
 void write_block (target_t *mc, unsigned addr, int len)
@@ -347,13 +348,13 @@ void write_block (target_t *mc, unsigned addr, int len)
         (len + 3) / 4, (unsigned*) (memory_data + addr));
 }
 
-int verify_block (target_t *mc, unsigned addr, int len)
+int verify_block (target_t *mc, unsigned addr, int len, int info_flash)
 {
     int i;
     unsigned word, expected, block [BLOCKSZ/4];
 
 //printf("memory_base+addr=0x%x;(len+3)/4=%d\n",memory_base+addr,(len+3)/4);
-    target_read_block (mc, memory_base + addr, (len+3)/4, block);
+    target_read_block (mc, memory_base + addr, (len+3)/4, block, info_flash);
 //printf("block[0]=%x\n",block[0]);
     for (i=0; i<len; i+=4) {
         expected = *(unsigned*) (memory_data + addr + i);
@@ -372,7 +373,7 @@ int verify_block (target_t *mc, unsigned addr, int len)
     return 1;
 }
 
-void do_program (char *filename)
+void do_program (char *filename, int info_flash)
 {
     unsigned addr;
     int len;
@@ -390,11 +391,12 @@ void do_program (char *filename)
         exit (1);
     }
     printf (_("Processor: %s\n"), target_cpu_name (target));
-    printf (_("Flash memory: %d kbytes\n"), target_flash_bytes (target) / 1024);
+    printf (_("Main flash memory: %d kbytes\n"), target_main_flash_bytes (target) / 1024);
+    printf (_("Info flash memory: %d kbytes\n"), target_info_flash_bytes (target) / 1024);
 
     if (! verify_only) {
         /* Erase flash. */
-        target_erase (target, memory_base);
+        target_erase (target, memory_base, info_flash);
     }
     for (progress_step=1; ; progress_step<<=1) {
         progress_len = 1 + memory_len / progress_step / BLOCKSZ;
@@ -414,7 +416,7 @@ void do_program (char *filename)
             if (memory_len - addr < len)
                 len = memory_len - addr;
             if (! verify_only)
-                program_block (target, addr, len);
+                program_block (target, addr, len, info_flash);
             progress ();
         }
         printf (_("# done\n"));
@@ -439,7 +441,7 @@ void do_program (char *filename)
         if (memory_len - addr < len)
             len = memory_len - addr;
         progress ();
-        if (! verify_block (target, addr, len))
+        if (! verify_block (target, addr, len, info_flash))
             exit (0);
     }
     printf (_("# done\n"));
@@ -484,7 +486,7 @@ void do_write ()
             if (memory_len - addr < len)
                 len = memory_len - addr;
             if (! verify_only)
-                program_block (target, addr, len);
+                write_block (target, addr, len);
             progress ();
         }
         printf (_("# done\n"));
@@ -509,7 +511,7 @@ void do_write ()
         if (memory_len - addr < len)
             len = memory_len - addr;
         progress ();
-        if (! verify_block (target, addr, len))
+        if (! verify_block (target, addr, len, 0))
             exit (0);
     }
     printf (_("# done\n"));
@@ -517,7 +519,7 @@ void do_write ()
         memory_len * 1000L / mseconds_elapsed (t0));
 }
 
-void do_read (char *filename)
+void do_read (char *filename, int info_flash)
 {
     FILE *fd;
     unsigned len, addr, data [BLOCKSZ/4];
@@ -557,7 +559,7 @@ void do_read (char *filename)
         progress ();
 
         target_read_block (target, memory_base + addr,
-            (len + 3) / 4, data);
+            (len + 3) / 4, data, info_flash);
         if (fwrite (data, 1, len, fd) != len) {
             fprintf (stderr, "%s: write error!\n", filename);
             exit (1);
@@ -629,6 +631,7 @@ static void gpl_show_warranty (void)
 int main (int argc, char **argv)
 {
     int ch, read_mode = 0, memory_write_mode = 0, erase_mode = 0;
+    int info_flash = 0;
     unsigned erase_addr = 0;
     static const struct option long_options[] = {
         { "help",        0, 0, 'h' },
@@ -663,7 +666,7 @@ int main (int argc, char **argv)
 #endif
     signal (SIGTERM, interrupted);
 
-    while ((ch = getopt_long (argc, argv, "vDhrwe:CVW",
+    while ((ch = getopt_long (argc, argv, "vDhrwe:iCVW",
       long_options, 0)) != -1) {
         switch (ch) {
         case 'v':
@@ -681,6 +684,9 @@ int main (int argc, char **argv)
         case 'e':
             ++erase_mode;
             erase_addr = strtoul (optarg, 0, 0);
+            continue;
+        case 'i':
+            ++info_flash;
             continue;
         case 'h':
             break;
@@ -721,6 +727,7 @@ usage:
         printf ("       -v                  Verify only\n");
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
+        printf ("       -i                  Use info flash instead of main\n");
         printf ("       -D                  Debug mode\n");
         printf ("       -h, --help          Print this help message\n");
         printf ("       -V, --version       Print version\n");
@@ -754,7 +761,7 @@ usage:
         if (memory_write_mode)
             do_write ();
         else
-            do_program (argv[0]);
+            do_program (argv[0], info_flash);
         break;
     case 2:
         memory_base = strtoul (argv[1], 0, 0);
@@ -762,14 +769,14 @@ usage:
         if (memory_write_mode)
             do_write ();
         else
-            do_program (argv[0]);
+            do_program (argv[0], info_flash);
         break;
     case 3:
         if (! read_mode)
             goto usage;
         memory_base = strtoul (argv[1], 0, 0);
         memory_len = strtoul (argv[2], 0, 0);
-        do_read (argv[0]);
+        do_read (argv[0], info_flash);
         break;
     default:
         goto usage;
