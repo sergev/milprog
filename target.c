@@ -119,22 +119,37 @@ target_t *target_open (int need_reset)
         t->adapter->close (t->adapter);
         exit (1);
     }
-    t->adapter->reset_cpu (t->adapter);
+    //t->adapter->reset_cpu (t->adapter);
+
+	mdelay (1);
 
     /* Включение питания блока отладки, сброс залипающих ошибок. */
-
     unsigned ctl = CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
-        SSTICKYORUN | SSTICKYCMP | SSTICKYERR;
-    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
+	    SSTICKYORUN | SSTICKYCMP | SSTICKYERR;
+
     t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
+
+	mdelay (1);
+
+/*    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
+fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));
+
+    while (! (t->adapter->dp_read (t->adapter, DP_CTRL_STAT) & CDBGRSTACK)) {
+	    //fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));
+    }
+    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
+fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));    
     mdelay (10);
+*/
 
     /* Выбираем 3-й блок регистров MEM-AP. */
     t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
 
     /* Проверка регистра MEM-AP IDR. */
     unsigned apid = t->adapter->mem_ap_read (t->adapter, MEM_AP_IDR);
-    if (apid != 0x24770011) {
+    if (debug_level) 
+    	fprintf (stderr, "apid = %08X\n", apid);
+    if (apid != 0x24770011 && apid != 0x44770001) {
         fprintf (stderr, _("Unknown type of memory access port, IDR=%08x.\n"),
                 apid);
         t->adapter->close (t->adapter);
@@ -152,53 +167,47 @@ target_t *target_open (int need_reset)
 
     /* Выбираем 0-й блок регистров MEM-AP. */
     t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_CSW & 0xF0);
-
+    
     /* Установка режимов блока MEM-AP: регистр CSW. */
-    t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, CSW_MASTER_DEBUG | CSW_HPROT |
-        CSW_32BIT | CSW_ADDRINC_SINGLE);
+    t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, CSW_HPROT | CSW_32BIT | CSW_ADDRINC_SINGLE);
     if (debug_level) {
         unsigned csw = t->adapter->mem_ap_read (t->adapter, MEM_AP_CSW);
         fprintf (stderr, "MEM-AP CSW = %08x\n", csw);
     }
-
+    
     /* Останавливаем процессор. */
     unsigned retry;
     for (retry=1; ; ++retry) {
 
-	if (retry % 5 == 0) t->adapter->reset_cpu (t->adapter);
+		//if (retry % 5 == 0) t->adapter->reset_cpu (t->adapter);
 
-        target_write_word (t, AIRCR, ARM_AIRCR_VECTKEY | ARM_AIRCR_SYSRESETREQ);
-        target_write_word (t, AIRCR, ARM_AIRCR_VECTKEY);
-
-        target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN |
-            C_HALT | C_MASKINTS | C_SNAPSTALL);
-        t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
-        if (t->adapter->stalled) {
-        	fprintf (stderr, "Cannot write DHCSR... "); fflush (stderr);
-            t->adapter->reset_cpu (t->adapter);
-            if (retry > 200) {
-                fprintf (stderr, "Cannot write to DHCSR, aborted\n");
-                t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
-                t->adapter->close (t->adapter);
-                exit (1);
-            }
-            continue;
-        }
-
+        target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
         dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
-        if (dhcsr == (C_DEBUGEN | C_HALT | C_MASKINTS | C_SNAPSTALL |
-                      S_REGRDY | S_HALT)) {
-            break;
+        if (dhcsr == (C_DEBUGEN | C_HALT | C_MASKINTS | S_REGRDY | S_HALT)) {
+            break; /* Процессор остановлен */
         }
-        /* Сброс блока отладки */
-        t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
+        
+        if (retry > 200) {
+            fprintf (stderr, "Cannot write to DHCSR, aborted\n");
+            t->adapter->mem_ap_write (t->adapter, MEM_AP_CSW, 0);
+            t->adapter->close (t->adapter);
+            exit (1);
+        }
+        
+        /* Сброс залипающих флагов */
         t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
     }
 
     /* Проверяем идентификатор процессора. */
     t->cpuid = target_read_word (t, CPUID);
     switch (t->cpuid) {
-    case 0x412fc230:    /* Миландр 1986ВМ91Т */
+    case 0x411CC210:    /* Миландp 1986ВЕ1T */ 
+        t->cpu_name = _("Milandr 1986BE1T");
+        t->main_flash_addr = 0x08000000;
+        t->main_flash_bytes = 128*1024;
+        t->info_flash_bytes = 4*1024;
+        break;
+    case 0x412FC230:    /* Миландр 1986ВМ91Т */
         t->cpu_name = _("Milandr 1986BM91T");
         t->main_flash_addr = 0x08000000;
         t->main_flash_bytes = 128*1024;

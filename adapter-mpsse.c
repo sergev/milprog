@@ -551,7 +551,7 @@ static void mpsse_reset_cpu (adapter_t *adapter)
     a->bytes_to_read = 0;
 
     /* Активируем /SYSRST на несколько микросекунд. */
-    mpsse_reset (a, 0, 1, 1);
+    mpsse_reset (a, 1, 1, 1);
     mpsse_reset (a, 0, 0, 1);
 }
 

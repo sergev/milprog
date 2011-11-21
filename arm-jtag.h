@@ -90,7 +90,7 @@
 #define CSW_DEVICE_EN		(1<<6)  /* MEM transfers permitted */
 #define CSW_TRIN_PROG		(1<<7)  /* Transfer in progress */
     /* 30:24 - implementation-defined! */
-#define CSW_HPROT		(1<<25) /* User/privilege control */
+#define CSW_HPROT		(3<<24) /* User/privilege control */
 #define CSW_MASTER_DEBUG	(1<<29) /* Allow debugger to halt the core */
 
 /*
@@ -101,11 +101,20 @@
 /*
  * Cortex-M3 registers.
  */
-#define SYSTICK_CTRL            0xE000E010
-#define ICER0                   0xE000E180      /* Запрет прерываний */
-#define ICPR0                   0xE000E280      /* Сброс прерываний */
-#define CPUID                   0xE000ED00
-#define AIRCR                   0xE000ED0C
+#define SYSTICK_CTRL            0xE000E010      /* SysTick Control and Status Register */ 
+#define ICER0                   0xE000E180      /* Запрет прерываний Irq 0 to 31 Clear Enable Register  */
+#define ICPR0                   0xE000E280      /* Сброс прерываний  Irq 0 to 31 Clear Pending Register */
+#define CPUID                   0xE000ED00      /* CPUID Base Register   == 0x412FC230                  */
+#define AIRCR                   0xE000ED0C      /* Application Interrupt/Reset Control Register         */
+
+#define Milandr_1986BM91T       0x412FC230
+
+/*
+ * Cortex-M1 registers
+ */
+#define Milandr_1986BE1T        0x411CC210
+
+
 
 /*
  * Регистр SCB AIRCR: управление прерываниями и программный сброс.
