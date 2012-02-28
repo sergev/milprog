@@ -400,7 +400,7 @@ void do_program (char *filename, int info_flash)
         /* Erase flash. */
         if (info_flash)
 	    target_erase (target, memory_base, info_flash);
-	else 
+	else
 	    while (cur_len < memory_len) {
 	        target_erase_block (target, memory_base + cur_len);
 	        cur_len += FLASH_BLOCK_SZ;
@@ -590,6 +590,17 @@ void do_erase_block (unsigned addr)
     target_erase_block (target, addr);
 }
 
+void do_erase_all ()
+{
+    target = target_open (1);
+    if (! target) {
+        fprintf (stderr, _("Error detecting device -- check cable!\n"));
+        exit (1);
+    }
+
+    target_erase (target, memory_base, 0);
+}
+
 /*
  * Print copying part of license
  */
@@ -640,7 +651,7 @@ int main (int argc, char **argv)
 {
     int ch, read_mode = 0, memory_write_mode = 0, erase_mode = 0;
     int info_flash = 0;
-    unsigned erase_addr = 0;
+    //unsigned erase_addr = 0;
     static const struct option long_options[] = {
         { "help",        0, 0, 'h' },
         { "warranty",    0, 0, 'W' },
@@ -674,7 +685,7 @@ int main (int argc, char **argv)
 #endif
     signal (SIGTERM, interrupted);
 
-    while ((ch = getopt_long (argc, argv, "vDhrwe:iCVW",
+    while ((ch = getopt_long (argc, argv, "vDhrweiCVW",
       long_options, 0)) != -1) {
         switch (ch) {
         case 'v':
@@ -691,7 +702,7 @@ int main (int argc, char **argv)
             continue;
         case 'e':
             ++erase_mode;
-            erase_addr = strtoul (optarg, 0, 0);
+            //erase_addr = strtoul (optarg, 0, 0);
             continue;
         case 'i':
             ++info_flash;
@@ -735,6 +746,7 @@ usage:
         printf ("       -v                  Verify only\n");
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
+        printf ("       -e                  Erase all\n");
         printf ("       -i                  Use info flash instead of main\n");
         printf ("       -D                  Debug mode\n");
         printf ("       -h, --help          Print this help message\n");
@@ -751,7 +763,8 @@ usage:
     switch (argc) {
     case 0:
         if (erase_mode) {
-            do_erase_block (erase_addr);
+            //do_erase_block (erase_addr);
+            do_erase_all ();
             break;
         } else {
             do_probe ();
