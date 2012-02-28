@@ -31,6 +31,7 @@
 
 #define VERSION         "1.1"
 #define BLOCKSZ         1024
+#define FLASH_BLOCK_SZ	4096
 #define DEFAULT_ADDR    0x08000000
 
 /* Macros for converting between hex and binary. */
@@ -379,6 +380,7 @@ void do_program (char *filename, int info_flash)
     int len;
     int progress_len;
     void *t0;
+    int cur_len = 0;
 
     printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
         memory_base + memory_len, memory_len);
@@ -396,7 +398,13 @@ void do_program (char *filename, int info_flash)
 
     if (! verify_only) {
         /* Erase flash. */
-        target_erase (target, memory_base, info_flash);
+        if (info_flash)
+	    target_erase (target, memory_base, info_flash);
+	else 
+	    while (cur_len < memory_len) {
+	        target_erase_block (target, memory_base + cur_len);
+	        cur_len += FLASH_BLOCK_SZ;
+	    }
     }
     for (progress_step=1; ; progress_step<<=1) {
         progress_len = 1 + memory_len / progress_step / BLOCKSZ;

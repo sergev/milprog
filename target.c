@@ -102,7 +102,7 @@ target_t *target_open (int need_reset)
         fprintf (stderr, _("No JTAG adapter found.\n"));
         exit (-1);
     }
-
+    
     /* Проверяем идентификатор процессора. */
     idcode = t->adapter->get_idcode (t->adapter);
     if (debug_level)
@@ -119,8 +119,8 @@ target_t *target_open (int need_reset)
         t->adapter->close (t->adapter);
         exit (1);
     }
-    //t->adapter->reset_cpu (t->adapter);
-
+	//t->adapter->reset_cpu (t->adapter);
+	
 	mdelay (1);
 
     /* Включение питания блока отладки, сброс залипающих ошибок. */
@@ -183,6 +183,7 @@ fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTR
 
         target_write_word (t, DCB_DHCSR, DBGKEY | C_DEBUGEN | C_HALT | C_MASKINTS);
         dhcsr = target_read_word (t, DCB_DHCSR) & 0xFFFFFF;
+        //fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));    
         if (dhcsr == (C_DEBUGEN | C_HALT | C_MASKINTS | S_REGRDY | S_HALT)) {
             break; /* Процессор остановлен */
         }
@@ -324,7 +325,7 @@ int target_erase (target_t *t, unsigned addr, int info_flash)
 	target_write_word (t, EEPROM_CMD, con);			// clear XE, NVSTR, MAS1
 	// mdelay (1);                                             	// 1 us
     }
-    target_write_word (t, EEPROM_CMD, 0);                       // clear CON
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4);      // clear CON
     clear_cache (t, addr);
     printf (_(" done\n"));
     return 1;
@@ -365,7 +366,7 @@ int target_erase_block (target_t *t, unsigned addr)
         target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // clear XE, NVSTR
         mdelay (1);                                             // 1 us
     }
-    target_write_word (t, EEPROM_CMD, 0);                   // clear CON
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4);      // clear CON
     clear_cache (t, addr);
     printf (_(" done\n"));
     return 1;
@@ -480,7 +481,7 @@ void target_program_block (target_t *t, unsigned pageaddr,
         target_write_word (t, EEPROM_CMD, con);	// clear XE, NVSTR
 	//mdelay (1);
     }
-    target_write_word (t, EEPROM_CMD, 0);                   // clear CON
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4); // clear CON
 
     clear_cache (t, pageaddr);
 }
