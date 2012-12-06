@@ -35,6 +35,10 @@ clean:
 
 install:	milprog #milprog-ru.mo
 		install -c -s milprog /usr/local/bin/milprog
+		if [ `uname` = Linux ]; then \
+		    chown root /usr/local/bin/milprog; \
+		    chmod 4755 /usr/local/bin/milprog; \
+		fi		
 #		install -c -m 444 milprog-ru.mo /usr/local/share/locale/ru/LC_MESSAGES/milprog.mo
 ###
 adapter-mpsse.o: adapter-mpsse.c adapter.h arm-jtag.h
