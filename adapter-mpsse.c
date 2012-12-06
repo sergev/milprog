@@ -68,6 +68,7 @@ typedef struct {
 #define OLIMEX_VID              0x15ba
 #define OLIMEX_ARM_USB_TINY     0x0004  /* ARM-USB-Tiny */
 #define OLIMEX_ARM_USB_TINY_H   0x002a	/* ARM-USB-Tiny-H */
+#define OLIMEX_ARM_USB_OCD_H    0x002b	/* ARM-USB-OCD-H */
 
 /*
  * USB endpoints.
@@ -573,7 +574,8 @@ adapter_t *adapter_open_mpsse (void)
         for (dev = bus->devices; dev; dev = dev->next) {
             if (dev->descriptor.idVendor == OLIMEX_VID &&
                 (dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY ||
-                 dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY_H))
+                 dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY_H ||
+                 dev->descriptor.idProduct == OLIMEX_ARM_USB_OCD_H))
                 goto found;
         }
     }
@@ -631,7 +633,8 @@ failed: usb_release_interface (a->usbdev, 0);
         divisor = 1;
         latency_timer = 4;
 #endif
-    } else if (jtag_adapter_version == OLIMEX_ARM_USB_TINY_H) {
+    } else if (jtag_adapter_version == OLIMEX_ARM_USB_TINY_H || 
+               jtag_adapter_version == OLIMEX_ARM_USB_OCD_H) {
         divisor = 1;
         latency_timer = 0;
     }
