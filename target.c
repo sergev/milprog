@@ -444,42 +444,40 @@ void target_program_block (target_t *t, unsigned pageaddr,
 
     for (i=0; i<nwords; i++) {
         target_write_word (t, EEPROM_ADR, pageaddr + i*4);
-        //mdelay (1);
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |	// set XE
-                                          EEPROM_CMD_PROG); // set PROG
-	//mdelay (1);
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |
-                                          EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR);// set NVSTR
-	target_write_word (t, EEPROM_DI, data [i]);
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |
-                                          EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR |
-                                          EEPROM_CMD_WR);   // set WR
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |
-                                          EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR);// clear WR
-	//mdelay (1);
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |
-                                          EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR |
-                                          EEPROM_CMD_YE);	// set YE
-	//mdelay (1);
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |
-                                          EEPROM_CMD_PROG |
-                                          EEPROM_CMD_NVSTR);// clear YE
-	target_write_word (t, EEPROM_CMD, con |
-                                          EEPROM_CMD_XE |
-                                          EEPROM_CMD_NVSTR);// clear PROG
-	//mdelay (1);
-        target_write_word (t, EEPROM_CMD, con);	// clear XE, NVSTR
-	//mdelay (1);
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |	    // set XE
+                              EEPROM_CMD_PROG);     // set PROG
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |
+                              EEPROM_CMD_PROG |
+                              EEPROM_CMD_NVSTR);    // set NVSTR
+        target_write_word (t, EEPROM_DI, data [i]);
+        /*
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |
+                              EEPROM_CMD_PROG |
+                              EEPROM_CMD_NVSTR |
+                              EEPROM_CMD_WR);       // set WR
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |
+                              EEPROM_CMD_PROG |
+                              EEPROM_CMD_NVSTR);    // clear WR
+        */
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |
+                              EEPROM_CMD_PROG |
+                              EEPROM_CMD_NVSTR |
+                              EEPROM_CMD_YE);	    // set YE
+        /*
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |
+                              EEPROM_CMD_PROG |
+                              EEPROM_CMD_NVSTR);    // clear YE
+        target_write_word (t, EEPROM_CMD, con |
+                              EEPROM_CMD_XE |
+                              EEPROM_CMD_NVSTR);    // clear PROG
+        */
+        target_write_word (t, EEPROM_CMD, con);	    // clear XE, NVSTR
     }
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4); // clear CON
 
