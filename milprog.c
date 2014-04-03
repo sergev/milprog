@@ -30,7 +30,7 @@
 #include "localize.h"
 
 #define VERSION         "1.1"
-#define BLOCKSZ         1024
+#define BLOCKSZ         4096 //1024
 #define FLASH_BLOCK_SZ	4096
 #define DEFAULT_ADDR    0x08000000
 
@@ -38,11 +38,14 @@
 #define NIBBLE(x)       (isdigit(x) ? (x)-'0' : tolower(x)+10-'a')
 #define HEX(buffer)     ((NIBBLE((buffer)[0])<<4) + NIBBLE((buffer)[1]))
 
+#define BLOCK_PROG_NB_RETRIES   3
+
 unsigned char memory_data [0x20000];   /* Code - up to 128 kbytes */
 int memory_len;
 unsigned memory_base;
 unsigned progress_count, progress_step;
 int verify_only;
+int prog_then_verify;
 int debug_level;
 target_t *target;
 char *progname;
@@ -349,26 +352,24 @@ void write_block (target_t *mc, unsigned addr, int len)
         (len + 3) / 4, (unsigned*) (memory_data + addr));
 }
 
-int verify_block (target_t *mc, unsigned addr, int len, int info_flash)
+int verify_block (target_t *mc, unsigned addr, int len, int info_flash, int print_error)
 {
     int i;
     unsigned word, expected, block [BLOCKSZ/4];
 
-//printf("memory_base+addr=0x%x;(len+3)/4=%d\n",memory_base+addr,(len+3)/4);
     target_read_block (mc, memory_base + addr, (len+3)/4, block, info_flash);
-//printf("block[0]=%x\n",block[0]);
+
     for (i=0; i<len; i+=4) {
         expected = *(unsigned*) (memory_data + addr + i);
-//      if (expected == 0xffffffff)
-//          continue;
         word = block [i/4];
         if (debug_level > 1)
             printf (_("read word %08X at address %08X\n"),
                 word, addr + i + memory_base);
         if (word != expected) {
-            printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
-                addr + i + memory_base, expected, word);
-            exit (1);
+            if (print_error)
+                printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
+                    addr + i + memory_base, expected, word);
+            return 0;
         }
     }
     return 1;
@@ -381,6 +382,8 @@ void do_program (char *filename, int info_flash)
     int progress_len;
     void *t0;
     int cur_len = 0;
+    int i;
+    unsigned nb_of_retries = 0;
 
     printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
         memory_base + memory_len, memory_len);
@@ -412,49 +415,98 @@ void do_program (char *filename, int info_flash)
             break;
     }
 
-    progress_count = 0;
-    t0 = fix_time ();
-    if (! verify_only) {
-	printf (_("Program: "));
+    if (prog_then_verify) {
+        progress_count = 0;
+        t0 = fix_time ();
+        if (! verify_only) {
+	    printf (_("Program: "));
+            print_symbols ('.', progress_len);
+            print_symbols ('\b', progress_len);
+            fflush (stdout);
+            for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
+                len = BLOCKSZ;
+                if (memory_len - addr < len)
+                    len = memory_len - addr;
+                if (! verify_only)
+                    program_block (target, addr, len, info_flash);
+                progress ();
+            }
+            printf (_("# done\n"));
+        }
+
+        target_close (target);
+        free (target);
+
+        target = target_open (1);
+        if (! target) {
+            fprintf (stderr, _("Error detecting device -- check cable!\n"));
+            exit (1);
+        }
+
+        printf (_("Verify:  "));
         print_symbols ('.', progress_len);
         print_symbols ('\b', progress_len);
         fflush (stdout);
+
         for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
             len = BLOCKSZ;
             if (memory_len - addr < len)
                 len = memory_len - addr;
-            if (! verify_only)
-                program_block (target, addr, len, info_flash);
             progress ();
+            if (! verify_block (target, addr, len, info_flash, 1))
+                exit (0);
         }
         printf (_("# done\n"));
+        printf (_("Rate: %ld bytes per second\n"),
+            memory_len * 1000L / mseconds_elapsed (t0));
+    } else {    // !prog_then_verify
+        progress_count = 0;
+        t0 = fix_time ();
+        if (! verify_only) {
+	    printf (_("Program and verify: "));
+            print_symbols ('.', progress_len);
+            print_symbols ('\b', progress_len);
+            fflush (stdout);
+            for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
+                len = BLOCKSZ;
+                if (memory_len - addr < len)
+                    len = memory_len - addr;
+                if (! verify_only)
+                    program_block (target, addr, len, info_flash);
+                for (i = 0; i < BLOCK_PROG_NB_RETRIES; ++i) {
+                    if (verify_block (target, addr, len, info_flash, 0))
+                        break;
+                    if (debug_level > 0)
+                        fprintf (stderr, "Verify failed for block at %08X, retry...\n", addr);
+                    if (! verify_only) {
+                        /*
+                        target_close (target);
+                        free (target);
+
+                        target = target_open (1);
+                        if (! target) {
+                            fprintf (stderr, _("Error detecting device -- check cable!\n"));
+                            exit (1);
+                        }
+                        */
+                        target_erase_block (target, addr);
+                        program_block (target, addr, len, info_flash);
+                    }                    
+                }
+                nb_of_retries += i;
+                if (i == BLOCK_PROG_NB_RETRIES) {
+                    fprintf (stderr, "\nVerification failed!\n");
+                    printf ("Nb of retries: %d\n", nb_of_retries);
+                    exit(0);
+                }
+                progress ();
+            }
+            printf (_("# done\n"));
+            printf (_("Rate: %ld bytes per second\n"),
+                memory_len * 1000L / mseconds_elapsed (t0));
+            printf ("Nb of retries: %d\n", nb_of_retries);
+        }
     }
-
-    target_close (target);
-    free (target);
-
-    target = target_open (1);
-    if (! target) {
-        fprintf (stderr, _("Error detecting device -- check cable!\n"));
-        exit (1);
-    }
-
-    printf (_("Verify:  "));
-    print_symbols ('.', progress_len);
-    print_symbols ('\b', progress_len);
-    fflush (stdout);
-
-    for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
-        len = BLOCKSZ;
-        if (memory_len - addr < len)
-            len = memory_len - addr;
-        progress ();
-        if (! verify_block (target, addr, len, info_flash))
-            exit (0);
-    }
-    printf (_("# done\n"));
-    printf (_("Rate: %ld bytes per second\n"),
-        memory_len * 1000L / mseconds_elapsed (t0));
 }
 
 void do_write ()
@@ -519,7 +571,7 @@ void do_write ()
         if (memory_len - addr < len)
             len = memory_len - addr;
         progress ();
-        if (! verify_block (target, addr, len, 0))
+        if (! verify_block (target, addr, len, 0, 1))
             exit (0);
     }
     printf (_("# done\n"));
@@ -685,7 +737,7 @@ int main (int argc, char **argv)
 #endif
     signal (SIGTERM, interrupted);
 
-    while ((ch = getopt_long (argc, argv, "vDhrweiCVW",
+    while ((ch = getopt_long (argc, argv, "vDhrweaiCVW",
       long_options, 0)) != -1) {
         switch (ch) {
         case 'v':
@@ -703,6 +755,9 @@ int main (int argc, char **argv)
         case 'e':
             ++erase_mode;
             //erase_addr = strtoul (optarg, 0, 0);
+            continue;
+        case 'a':
+            ++prog_then_verify;
             continue;
         case 'i':
             ++info_flash;
@@ -747,6 +802,7 @@ usage:
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
         printf ("       -e                  Erase all\n");
+        printf ("       -a                  Verify only after full chip programming\n");
         printf ("       -i                  Use info flash instead of main\n");
         printf ("       -D                  Debug mode\n");
         printf ("       -h, --help          Print this help message\n");
