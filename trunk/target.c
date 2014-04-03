@@ -222,7 +222,7 @@ fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTR
     }
 
     /* Подача тактовой частоты на периферийные блоки. */
-    target_write_word (t, PER_CLOCK, 0xFFFFFFFF);
+    target_write_word (t, PER_CLOCK, 0x8);
 
     /* Запрет прерываний. */
     target_write_word (t, ICER0, 0xFFFFFFFF);
@@ -468,7 +468,8 @@ void target_program_block (target_t *t, unsigned pageaddr,
                               EEPROM_CMD_PROG |
                               EEPROM_CMD_NVSTR |
                               EEPROM_CMD_YE);	    // set YE
-        /*
+
+
         target_write_word (t, EEPROM_CMD, con |
                               EEPROM_CMD_XE |
                               EEPROM_CMD_PROG |
@@ -476,7 +477,9 @@ void target_program_block (target_t *t, unsigned pageaddr,
         target_write_word (t, EEPROM_CMD, con |
                               EEPROM_CMD_XE |
                               EEPROM_CMD_NVSTR);    // clear PROG
-        */
+
+
+
         target_write_word (t, EEPROM_CMD, con);	    // clear XE, NVSTR
     }
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4); // clear CON
