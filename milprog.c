@@ -730,7 +730,7 @@ int main (int argc, char **argv)
     setvbuf (stderr, (char *)NULL, _IOLBF, 0);
     printf (_("Programmer for Milandr ARM microcontrollers, Version %s\n"), VERSION);
     progname = argv[0];
-    copyright = _("Copyright (C) 2010, 2011 Serge Vakulenko");
+    copyright = _("Copyright (C) 2010, 2011 Serge Vakulenko; 2016 Pavel Sukortsev");
     signal (SIGINT, interrupted);
 #ifdef __linux__
     signal (SIGHUP, interrupted);

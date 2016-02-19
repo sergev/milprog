@@ -384,6 +384,7 @@ static void mpsse_close (adapter_t *adapter)
 
     mpsse_flush_output (a);
     mpsse_reset (a, 0, 0, 0);
+    usb_reset(a->usbdev);
     usb_release_interface (a->usbdev, 0);
     usb_close (a->usbdev);
     free (a);
