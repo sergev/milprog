@@ -145,6 +145,8 @@ fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTR
     /* Выбираем 3-й блок регистров MEM-AP. */
     t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
 
+    mdelay (10);
+
     /* Проверка регистра MEM-AP IDR. */
     unsigned apid = t->adapter->mem_ap_read (t->adapter, MEM_AP_IDR);
     if (debug_level) 
