@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <signal.h>
+#include <stdint.h>
 #include <getopt.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -32,7 +33,6 @@
 #define VERSION         "1.1"
 #define BLOCKSZ         4096 //1024
 #define FLASH_BLOCK_SZ	4096
-#define DEFAULT_ADDR    0x08000000
 
 /* Macros for converting between hex and binary. */
 #define NIBBLE(x)       (isdigit(x) ? (x)-'0' : tolower(x)+10-'a')
@@ -336,6 +336,24 @@ void do_probe ()
         target_idcode (target));
     printf (_("Main flash memory: %d kbytes\n"), target_main_flash_bytes (target) / 1024);
     printf (_("Info flash memory: %d kbytes\n"), target_info_flash_bytes (target) / 1024);
+}
+
+unsigned processor_base_addr()
+{
+    unsigned ret_value;
+    atexit (quit);
+    target_t *t = target_open (1);
+    if (! t) {
+        fprintf (stderr, _("Error detecting device -- check cable!\n"));
+        exit (1);
+    }
+
+    ret_value = target_info_flash_addr (t);
+
+    target_close (t);
+    free (t);
+
+    return ret_value;
 }
 
 void program_block (target_t *mc, unsigned addr, int len, int info_flash)
@@ -730,7 +748,7 @@ int main (int argc, char **argv)
     setvbuf (stderr, (char *)NULL, _IOLBF, 0);
     printf (_("Programmer for Milandr ARM microcontrollers, Version %s\n"), VERSION);
     progname = argv[0];
-    copyright = _("Copyright (C) 2010, 2011 Serge Vakulenko; 2016 Pavel Sukortsev");
+    copyright = _("Copyright (C) 2010, 2011, 2016 Serge Vakulenko");
     signal (SIGINT, interrupted);
 #ifdef __linux__
     signal (SIGHUP, interrupted);
@@ -796,8 +814,7 @@ usage:
         printf ("       file.srec           Code file in SREC format\n");
         printf ("       file.hex            Code file in HEX format\n");
         printf ("       file.bin            Code file in binary format\n");
-        printf ("       address             Address of flash memory, default 0x%08X\n",
-            DEFAULT_ADDR);
+        printf ("       address             Address of flash memory, default depends on processor\n");
         printf ("       -v                  Verify only\n");
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
@@ -831,7 +848,7 @@ usage:
         if (memory_len == 0) {
             memory_len = read_hex (argv[0], memory_data);
             if (memory_len == 0) {
-                memory_base = DEFAULT_ADDR;
+                memory_base = processor_base_addr();
                 memory_len = read_bin (argv[0], memory_data);
             }
         }
