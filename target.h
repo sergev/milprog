@@ -23,6 +23,7 @@ void target_close (target_t *mc);
 unsigned target_idcode (target_t *mc);
 const char *target_cpu_name (target_t *mc);
 unsigned target_flash_width (target_t *mc);
+unsigned target_main_flash_addr (target_t *mc);
 unsigned target_main_flash_bytes (target_t *mc);
 unsigned target_info_flash_bytes (target_t *mc);
 

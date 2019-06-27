@@ -30,9 +30,8 @@
 #include "localize.h"
 
 #define VERSION         "1.1"
-#define BLOCKSZ         1024
+#define BLOCKSZ         4096
 #define FLASH_BLOCK_SZ	4096
-#define DEFAULT_ADDR    0x08000000
 
 /* Macros for converting between hex and binary. */
 #define NIBBLE(x)       (isdigit(x) ? (x)-'0' : tolower(x)+10-'a')
@@ -337,6 +336,7 @@ void do_probe ()
 
 void program_block (target_t *mc, unsigned addr, int len, int info_flash)
 {
+//printf("program_block %08X\n", memory_base + addr);
     /* Write flash memory. */
     target_program_block (mc, memory_base + addr,
         (len + 3) / 4, (unsigned*) (memory_data + addr), info_flash);
@@ -368,7 +368,29 @@ int verify_block (target_t *mc, unsigned addr, int len, int info_flash)
         if (word != expected) {
             printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
                 addr + i + memory_base, expected, word);
-            exit (1);
+            //exit (1);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int check_erasure (target_t *mc, unsigned addr, int info_flash)
+{
+//printf("Check erasure: %08X\n", addr);
+    int i;
+    unsigned word, block [BLOCKSZ/4];
+
+    target_read_block (mc, addr, BLOCKSZ/4, block, info_flash);
+    for (i=0; i<BLOCKSZ/4; i+=4) {
+        word = block [i/4];
+        if (debug_level > 1)
+            printf (_("read word %08X at address %08X\n"),
+                word, addr + i + memory_base);
+        if (word != 0xFFFFFFFF) {
+            //printf (_("\nerror at address %08X: mem=%08X\n"),
+            //    addr + i, word);
+            return 0;
         }
     }
     return 1;
@@ -381,10 +403,7 @@ void do_program (char *filename, int info_flash)
     int progress_len;
     void *t0;
     int cur_len = 0;
-
-    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
-        memory_base + memory_len, memory_len);
-
+    
     /* Open and detect the device. */
     atexit (quit);
     target = target_open (1);
@@ -392,6 +411,12 @@ void do_program (char *filename, int info_flash)
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
+    if (memory_base == ~0)
+        memory_base = target_main_flash_addr (target);
+
+    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
+        memory_base + memory_len, memory_len);
+
     printf (_("Processor: %s\n"), target_cpu_name (target));
     printf (_("Main flash memory: %d kbytes\n"), target_main_flash_bytes (target) / 1024);
     printf (_("Info flash memory: %d kbytes\n"), target_info_flash_bytes (target) / 1024);
@@ -402,9 +427,21 @@ void do_program (char *filename, int info_flash)
 	    target_erase (target, memory_base, info_flash);
 	else
 	    while (cur_len < memory_len) {
-	        target_erase_block (target, memory_base + cur_len);
+	        printf (_("Erase address: %08X"), memory_base + cur_len);
+	        fflush(stdout);
+	        do target_erase_block (target, memory_base + cur_len);
+	        while (!check_erasure (target, memory_base + cur_len, info_flash));
+	        cur_len += FLASH_BLOCK_SZ;
+	        printf(_("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"));
+	    }
+	    printf("\n");
+	    /*
+	    cur_len = 0;
+	    while (cur_len < memory_len) {
+	        check_erasure (target, memory_base + cur_len, info_flash);
 	        cur_len += FLASH_BLOCK_SZ;
 	    }
+	    */
     }
     for (progress_step=1; ; progress_step<<=1) {
         progress_len = 1 + memory_len / progress_step / BLOCKSZ;
@@ -423,8 +460,18 @@ void do_program (char *filename, int info_flash)
             len = BLOCKSZ;
             if (memory_len - addr < len)
                 len = memory_len - addr;
-            if (! verify_only)
-                program_block (target, addr, len, info_flash);
+            if (! verify_only) {
+                while (1) {
+                    program_block (target, addr, len, info_flash);
+                    break;
+                    if (! verify_block (target, addr, len, info_flash)) {
+               	        do target_erase_block (target, memory_base + addr);
+	                    while (!check_erasure (target, memory_base + addr, info_flash));
+	                } else {
+	                    break;
+	                }
+	            }
+	        }
             progress ();
         }
         printf (_("# done\n"));
@@ -463,10 +510,7 @@ void do_write ()
     int len;
     int progress_len;
     void *t0;
-
-    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
-        memory_base + memory_len, memory_len);
-
+    
     /* Open and detect the device. */
     atexit (quit);
     target = target_open (1);
@@ -474,6 +518,13 @@ void do_write ()
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
+    
+    if (memory_base == ~0)
+        memory_base = target_main_flash_addr (target);
+
+    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
+        memory_base + memory_len, memory_len);
+
     printf (_("Processor: %s\n"), target_cpu_name (target));
 
     for (progress_step=1; ; progress_step<<=1) {
@@ -538,6 +589,10 @@ void do_read (char *filename, int info_flash)
         perror (filename);
         exit (1);
     }
+    
+    if (memory_base == ~0)
+        memory_base = target_main_flash_addr (target);
+        
     printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
         memory_base + memory_len, memory_len);
 
@@ -741,8 +796,7 @@ usage:
         printf ("       file.srec           Code file in SREC format\n");
         printf ("       file.hex            Code file in HEX format\n");
         printf ("       file.bin            Code file in binary format\n");
-        printf ("       address             Address of flash memory, default 0x%08X\n",
-            DEFAULT_ADDR);
+        printf ("       address             Address of flash memory, main flash start for default\n");
         printf ("       -v                  Verify only\n");
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
@@ -775,7 +829,7 @@ usage:
         if (memory_len == 0) {
             memory_len = read_hex (argv[0], memory_data);
             if (memory_len == 0) {
-                memory_base = DEFAULT_ADDR;
+                memory_base = ~0;
                 memory_len = read_bin (argv[0], memory_data);
             }
         }
