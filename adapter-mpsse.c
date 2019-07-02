@@ -66,6 +66,7 @@ typedef struct {
  * Identifiers of USB adapter.
  */
 #define OLIMEX_VID              0x15ba
+#define OLIMEX_ARM_USB_OCD      0x0003  /* ARM-USB-OCD */
 #define OLIMEX_ARM_USB_TINY     0x0004  /* ARM-USB-Tiny */
 #define OLIMEX_ARM_USB_TINY_H   0x002a	/* ARM-USB-Tiny-H */
 #define OLIMEX_ARM_USB_OCD_H    0x002b	/* ARM-USB-OCD-H */
@@ -573,7 +574,8 @@ adapter_t *adapter_open_mpsse (void)
     for (bus = usb_get_busses(); bus; bus = bus->next) {
         for (dev = bus->devices; dev; dev = dev->next) {
             if (dev->descriptor.idVendor == OLIMEX_VID &&
-                (dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY ||
+                (dev->descriptor.idProduct == OLIMEX_ARM_USB_OCD ||
+                 dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY ||
                  dev->descriptor.idProduct == OLIMEX_ARM_USB_TINY_H ||
                  dev->descriptor.idProduct == OLIMEX_ARM_USB_OCD_H))
                 goto found;
@@ -625,7 +627,7 @@ failed: usb_release_interface (a->usbdev, 0);
     unsigned divisor = 1;
     unsigned char latency_timer = 1;
 
-    if (jtag_adapter_version == OLIMEX_ARM_USB_TINY) {
+    if (jtag_adapter_version == OLIMEX_ARM_USB_TINY || jtag_adapter_version == OLIMEX_ARM_USB_OCD) {
 #ifdef _WIN32
         divisor = 2;
         latency_timer = 1;
