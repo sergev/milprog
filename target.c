@@ -124,31 +124,20 @@ target_t *target_open (int need_reset)
 	mdelay (1);
 
     /* Включение питания блока отладки, сброс залипающих ошибок. */
-    unsigned ctl = CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT |
-	    SSTICKYORUN | SSTICKYCMP | SSTICKYERR;
+	unsigned ctl = CSYSPWRUPREQ | CDBGPWRUPREQ | SSTICKYCMP | SSTICKYERR;
+	unsigned ack;
 
-    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
-
-	mdelay (1);
-
-/*    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl | CDBGRSTREQ);
-fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));
-
-    while (! (t->adapter->dp_read (t->adapter, DP_CTRL_STAT) & CDBGRSTACK)) {
-	    //fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));
-    }
-    t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
-fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTRL_STAT));    
-    mdelay (10);
-*/
-
-    /* Выбираем 3-й блок регистров MEM-AP. */
-    t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
-
-    mdelay (10);
-
-    /* Проверка регистра MEM-AP IDR. */
-    unsigned apid = t->adapter->mem_ap_read (t->adapter, MEM_AP_IDR);
+    do {
+        t->adapter->dp_write (t->adapter, DP_CTRL_STAT, ctl);
+        ack = t->adapter->dp_read (t->adapter, DP_CTRL_STAT);
+    } while (! (ack & (CDBGPWRUPACK | CSYSPWRUPACK)));
+    
+    unsigned apid;
+    do {
+        t->adapter->dp_write (t->adapter, DP_SELECT, MEM_AP_IDR & 0xF0);
+        apid = t->adapter->mem_ap_read (t->adapter, MEM_AP_IDR);
+    } while (apid == 0);
+    
     if (debug_level) 
     	fprintf (stderr, "apid = %08X\n", apid);
     if (apid != 0x24770011 && apid != 0x44770001) {
@@ -224,7 +213,7 @@ fprintf (stderr, "DP_CTRL_STAT: %08X\n", t->adapter->dp_read (t->adapter, DP_CTR
     }
 
     /* Подача тактовой частоты на периферийные блоки. */
-    target_write_word (t, PER_CLOCK, 0x8);
+    target_write_word (t, PER_CLOCK, 0xFFFFFFFF);
 
     /* Запрет прерываний. */
     target_write_word (t, ICER0, 0xFFFFFFFF);
@@ -259,6 +248,11 @@ unsigned target_idcode (target_t *t)
     return t->cpuid;
 }
 
+unsigned target_main_flash_addr(target_t *t)
+{
+    return t->main_flash_addr;
+}
+
 unsigned target_main_flash_bytes (target_t *t)
 {
     return t->main_flash_bytes;
@@ -269,10 +263,6 @@ unsigned target_info_flash_bytes (target_t *t)
     return t->info_flash_bytes;
 }
 
-unsigned target_info_flash_addr (target_t *t)
-{
-	return t->main_flash_addr;
-}
 
 /*
  * На образцах 1986ВЕ91Т с маркировкой "1030" после прошивки
@@ -316,7 +306,7 @@ int target_erase (target_t *t, unsigned addr, int info_flash)
                                           EEPROM_CMD_MAS1 |     // set MAS1
                                           EEPROM_CMD_XE |       // set XE
                                           EEPROM_CMD_ERASE);    // set ERASE
-	mdelay (1);                                             	// 5 us
+	// mdelay (1);                                             	// 5 us
 	target_write_word (t, EEPROM_CMD, con |
                                           EEPROM_CMD_MAS1 |
                                           EEPROM_CMD_XE |
@@ -327,9 +317,9 @@ int target_erase (target_t *t, unsigned addr, int info_flash)
                                           EEPROM_CMD_MAS1 |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_NVSTR);    // clear ERASE
-	mdelay (1);                                             	// 100 us
+	// mdelay (1);                                             	// 100 us
 	target_write_word (t, EEPROM_CMD, con);			// clear XE, NVSTR, MAS1
-	mdelay (1);                                             	// 1 us
+	// mdelay (1);                                             	// 1 us
     }
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4);      // clear CON
     clear_cache (t, addr);
@@ -344,8 +334,8 @@ int target_erase_block (target_t *t, unsigned addr)
 {
     unsigned i;
 
-    printf (_("Erase block: %08X..."), addr);
-    fflush (stdout);
+    //printf (_("Erase block: %08X..."), addr);
+    //fflush (stdout);
     // next 2 lines were swapped - S.I
     target_write_word (t, EEPROM_KEY, 0x8AAA5551); // enable access to EEPROM registers
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON);      // set CON
@@ -364,7 +354,7 @@ int target_erase_block (target_t *t, unsigned addr)
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_ERASE |
                                           EEPROM_CMD_NVSTR);    // set NVSTR
-        mdelay (40);                                            // 40 ms
+        mdelay (50);                                            // 40 ms
         target_write_word (t, EEPROM_CMD, EEPROM_CMD_CON |
                                           EEPROM_CMD_XE |
                                           EEPROM_CMD_NVSTR);    // clear ERASE
@@ -374,7 +364,7 @@ int target_erase_block (target_t *t, unsigned addr)
     }
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4);      // clear CON
     clear_cache (t, addr);
-    printf (_(" done\n"));
+    //printf (_(" done\n"));
     return 1;
 }
 
@@ -385,54 +375,23 @@ void target_read_block (target_t *t, unsigned addr,
     unsigned nwords, unsigned *data, int info_flash)
 {
 //fprintf (stderr, "target_read_block (addr = %x, nwords = %d)\n", addr, nwords);
+    unsigned con = EEPROM_CMD_CON;
     if (info_flash) {
-        unsigned con = EEPROM_CMD_CON | EEPROM_CMD_IFREN /*| EEPROM_CMD_RD*/;
-        target_write_word (t, EEPROM_KEY, 0x8AAA5551); // enable access to EEPROM registers
-        target_write_word (t, EEPROM_CMD, con);
+        con |= EEPROM_CMD_IFREN;
+    }
+    
+    target_write_word (t, EEPROM_KEY, 0x8AAA5551); // enable access to EEPROM registers
+    target_write_word (t, EEPROM_CMD, con);
 
 	int i;
-        for (i=0; i<nwords; i++) {
-            target_write_word (t, EEPROM_ADR, i*4);
-            target_write_word (t, EEPROM_CMD, con | EEPROM_CMD_XE | 
-                                              EEPROM_CMD_YE | EEPROM_CMD_SE);
-            data [i] = target_read_word (t, EEPROM_DO);
-            target_write_word (t, EEPROM_CMD, con);
-        }
-        target_write_word (t, EEPROM_CMD, 0);          // clear CON
-    } else {
-        unsigned con = EEPROM_CMD_CON /* | EEPROM_CMD_IFREN | EEPROM_CMD_RD*/;
-        target_write_word (t, EEPROM_KEY, 0x8AAA5551); // enable access to EEPROM registers
+    for (i=0; i<nwords; i++) {
+        target_write_word (t, EEPROM_ADR, addr + i*4);
+        target_write_word (t, EEPROM_CMD, con | EEPROM_CMD_XE | 
+                                          EEPROM_CMD_YE | EEPROM_CMD_SE);
+        data [i] = target_read_word (t, EEPROM_DO);
         target_write_word (t, EEPROM_CMD, con);
-        int i;
-        for (i=0; i<nwords; i++) {
-            target_write_word (t, EEPROM_ADR, addr + i*4);
-            target_write_word (t, EEPROM_CMD, con | EEPROM_CMD_XE |
-                                              EEPROM_CMD_YE | EEPROM_CMD_SE);
-            mdelay(1);
-            data [i] = target_read_word (t, EEPROM_DO);
-            target_write_word (t, EEPROM_CMD, con);
-        }
-        target_write_word (t, EEPROM_CMD, 0);          // clear CON
-
-#if 0
-        while (nwords > 0) {
-            unsigned n = 10;
-            if (n > nwords)
-                n = nwords;
-            t->adapter->read_data (t->adapter, addr, n, data);
-            if (t->adapter->stalled) {
-                if (debug_level > 1) {
-                    fprintf (stderr, "MEM-AP read data <<<WAIT>>>\n");
-                }
-                continue;
-            }
-            addr += n<<2;
-            data += n;
-            nwords -= n;
-       }
-#endif
-   }
-//fprintf (stderr, "    done (addr = %x)\n", addr);
+    }
+    target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4);          // clear CON
 }
 
 void target_write_block (target_t *t, unsigned addr,
@@ -467,29 +426,44 @@ void target_program_block (target_t *t, unsigned pageaddr,
 
     for (i=0; i<nwords; i++) {
         target_write_word (t, EEPROM_ADR, pageaddr + i*4);
-        target_write_word (t, EEPROM_DI, data [i]);
-        target_write_word (t, EEPROM_CMD, con |
-                              EEPROM_CMD_XE |	    // set XE
-                              EEPROM_CMD_PROG);     // set PROG
-        target_write_word (t, EEPROM_CMD, con |
-                              EEPROM_CMD_XE |
-                              EEPROM_CMD_PROG |
-                              EEPROM_CMD_NVSTR);    // set NVSTR
-        target_write_word (t, EEPROM_CMD, con |
-                              EEPROM_CMD_XE |
-                              EEPROM_CMD_PROG |
-                              EEPROM_CMD_NVSTR |
-                              EEPROM_CMD_YE);	    // set YE
-        target_write_word (t, EEPROM_CMD, con |
-                              EEPROM_CMD_XE |
-                              EEPROM_CMD_PROG |
-                              EEPROM_CMD_NVSTR);    // clear YE
-        target_write_word (t, EEPROM_CMD, con |
-                              EEPROM_CMD_XE |
-                              EEPROM_CMD_NVSTR);    // clear PROG
-        target_write_word (t, EEPROM_CMD, con);	    // clear XE, NVSTR
+        //mdelay (1);
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |	// set XE
+                                          EEPROM_CMD_PROG); // set PROG
+	//mdelay (1);
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR);// set NVSTR
+	target_write_word (t, EEPROM_DI, data [i]);
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR |
+                                          EEPROM_CMD_WR);   // set WR
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR);// clear WR
+	//mdelay (1);
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR |
+                                          EEPROM_CMD_YE);	// set YE
+	//mdelay (1);
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_PROG |
+                                          EEPROM_CMD_NVSTR);// clear YE
+	target_write_word (t, EEPROM_CMD, con |
+                                          EEPROM_CMD_XE |
+                                          EEPROM_CMD_NVSTR);// clear PROG
+	//mdelay (1);
+        target_write_word (t, EEPROM_CMD, con);	// clear XE, NVSTR
+	//mdelay (1);
     }
     target_write_word (t, EEPROM_CMD, EEPROM_CMD_DELAY_4); // clear CON
+
     clear_cache (t, pageaddr);
-    mdelay(1);
 }

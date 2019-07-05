@@ -52,9 +52,9 @@
 === Исходные тексты ===
 
 Исходные тексты распространяются на условиях лицензии GPL. Их можно
-скачать через Git командой:
+скачать через SVN командой:
 
-    git clone https://github.com/sergev/milprog.git
+    svn checkout http://milprog.googlecode.com/svn/trunk/ milprog
 
 ___
 С уважением,

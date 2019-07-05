@@ -19,7 +19,6 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <signal.h>
-#include <stdint.h>
 #include <getopt.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -31,21 +30,18 @@
 #include "localize.h"
 
 #define VERSION         "1.1"
-#define BLOCKSZ         4096 //1024
+#define BLOCKSZ         4096
 #define FLASH_BLOCK_SZ	4096
 
 /* Macros for converting between hex and binary. */
 #define NIBBLE(x)       (isdigit(x) ? (x)-'0' : tolower(x)+10-'a')
 #define HEX(buffer)     ((NIBBLE((buffer)[0])<<4) + NIBBLE((buffer)[1]))
 
-#define BLOCK_PROG_NB_RETRIES   3
-
 unsigned char memory_data [0x20000];   /* Code - up to 128 kbytes */
 int memory_len;
 unsigned memory_base;
 unsigned progress_count, progress_step;
 int verify_only;
-int prog_then_verify;
 int debug_level;
 target_t *target;
 char *progname;
@@ -338,26 +334,9 @@ void do_probe ()
     printf (_("Info flash memory: %d kbytes\n"), target_info_flash_bytes (target) / 1024);
 }
 
-unsigned processor_base_addr()
-{
-    unsigned ret_value;
-    atexit (quit);
-    target_t *t = target_open (1);
-    if (! t) {
-        fprintf (stderr, _("Error detecting device -- check cable!\n"));
-        exit (1);
-    }
-
-    ret_value = target_info_flash_addr (t);
-
-    target_close (t);
-    free (t);
-
-    return ret_value;
-}
-
 void program_block (target_t *mc, unsigned addr, int len, int info_flash)
 {
+//printf("program_block %08X\n", memory_base + addr);
     /* Write flash memory. */
     target_program_block (mc, memory_base + addr,
         (len + 3) / 4, (unsigned*) (memory_data + addr), info_flash);
@@ -370,23 +349,47 @@ void write_block (target_t *mc, unsigned addr, int len)
         (len + 3) / 4, (unsigned*) (memory_data + addr));
 }
 
-int verify_block (target_t *mc, unsigned addr, int len, int info_flash, int print_error)
+int verify_block (target_t *mc, unsigned addr, int len, int info_flash)
 {
     int i;
     unsigned word, expected, block [BLOCKSZ/4];
 
+//printf("memory_base+addr=0x%x;(len+3)/4=%d\n",memory_base+addr,(len+3)/4);
     target_read_block (mc, memory_base + addr, (len+3)/4, block, info_flash);
-
+//printf("block[0]=%x\n",block[0]);
     for (i=0; i<len; i+=4) {
         expected = *(unsigned*) (memory_data + addr + i);
+//      if (expected == 0xffffffff)
+//          continue;
         word = block [i/4];
         if (debug_level > 1)
             printf (_("read word %08X at address %08X\n"),
                 word, addr + i + memory_base);
         if (word != expected) {
-            if (print_error)
-                printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
-                    addr + i + memory_base, expected, word);
+            printf (_("\nerror at address %08X: file=%08X, mem=%08X\n"),
+                addr + i + memory_base, expected, word);
+            //exit (1);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int check_erasure (target_t *mc, unsigned addr, int info_flash)
+{
+//printf("Check erasure: %08X\n", addr);
+    int i;
+    unsigned word, block [BLOCKSZ/4];
+
+    target_read_block (mc, addr, BLOCKSZ/4, block, info_flash);
+    for (i=0; i<BLOCKSZ/4; i+=4) {
+        word = block [i/4];
+        if (debug_level > 1)
+            printf (_("read word %08X at address %08X\n"),
+                word, addr + i + memory_base);
+        if (word != 0xFFFFFFFF) {
+            //printf (_("\nerror at address %08X: mem=%08X\n"),
+            //    addr + i, word);
             return 0;
         }
     }
@@ -400,12 +403,7 @@ void do_program (char *filename, int info_flash)
     int progress_len;
     void *t0;
     int cur_len = 0;
-    int i;
-    unsigned nb_of_retries = 0;
-
-    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
-        memory_base + memory_len, memory_len);
-
+    
     /* Open and detect the device. */
     atexit (quit);
     target = target_open (1);
@@ -413,6 +411,12 @@ void do_program (char *filename, int info_flash)
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
+    if (memory_base == ~0)
+        memory_base = target_main_flash_addr (target);
+
+    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
+        memory_base + memory_len, memory_len);
+
     printf (_("Processor: %s\n"), target_cpu_name (target));
     printf (_("Main flash memory: %d kbytes\n"), target_main_flash_bytes (target) / 1024);
     printf (_("Info flash memory: %d kbytes\n"), target_info_flash_bytes (target) / 1024);
@@ -423,9 +427,21 @@ void do_program (char *filename, int info_flash)
 	    target_erase (target, memory_base, info_flash);
 	else
 	    while (cur_len < memory_len) {
-	        target_erase_block (target, memory_base + cur_len);
+	        printf (_("Erase address: %08X"), memory_base + cur_len);
+	        fflush(stdout);
+	        do target_erase_block (target, memory_base + cur_len);
+	        while (!check_erasure (target, memory_base + cur_len, info_flash));
+	        cur_len += FLASH_BLOCK_SZ;
+	        printf(_("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"));
+	    }
+	    printf("\n");
+	    /*
+	    cur_len = 0;
+	    while (cur_len < memory_len) {
+	        check_erasure (target, memory_base + cur_len, info_flash);
 	        cur_len += FLASH_BLOCK_SZ;
 	    }
+	    */
     }
     for (progress_step=1; ; progress_step<<=1) {
         progress_len = 1 + memory_len / progress_step / BLOCKSZ;
@@ -433,98 +449,59 @@ void do_program (char *filename, int info_flash)
             break;
     }
 
-    if (prog_then_verify) {
-        progress_count = 0;
-        t0 = fix_time ();
-        if (! verify_only) {
-	    printf (_("Program: "));
-            print_symbols ('.', progress_len);
-            print_symbols ('\b', progress_len);
-            fflush (stdout);
-            for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
-                len = BLOCKSZ;
-                if (memory_len - addr < len)
-                    len = memory_len - addr;
-                if (! verify_only)
-                    program_block (target, addr, len, info_flash);
-                progress ();
-            }
-            printf (_("# done\n"));
-        }
-
-        target_close (target);
-        free (target);
-
-        target = target_open (1);
-        if (! target) {
-            fprintf (stderr, _("Error detecting device -- check cable!\n"));
-            exit (1);
-        }
-
-        printf (_("Verify:  "));
+    progress_count = 0;
+    t0 = fix_time ();
+    if (! verify_only) {
+	printf (_("Program: "));
         print_symbols ('.', progress_len);
         print_symbols ('\b', progress_len);
         fflush (stdout);
-
         for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
             len = BLOCKSZ;
             if (memory_len - addr < len)
                 len = memory_len - addr;
+            if (! verify_only) {
+                while (1) {
+                    program_block (target, addr, len, info_flash);
+                    break;
+                    if (! verify_block (target, addr, len, info_flash)) {
+               	        do target_erase_block (target, memory_base + addr);
+	                    while (!check_erasure (target, memory_base + addr, info_flash));
+	                } else {
+	                    break;
+	                }
+	            }
+	        }
             progress ();
-            if (! verify_block (target, addr, len, info_flash, 1))
-                exit (0);
         }
         printf (_("# done\n"));
-        printf (_("Rate: %ld bytes per second\n"),
-            memory_len * 1000L / mseconds_elapsed (t0));
-    } else {    // !prog_then_verify
-        progress_count = 0;
-        t0 = fix_time ();
-        if (! verify_only) {
-	    printf (_("Program and verify: "));
-            print_symbols ('.', progress_len);
-            print_symbols ('\b', progress_len);
-            fflush (stdout);
-            for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
-                len = BLOCKSZ;
-                if (memory_len - addr < len)
-                    len = memory_len - addr;
-                if (! verify_only)
-                    program_block (target, addr, len, info_flash);
-                for (i = 0; i < BLOCK_PROG_NB_RETRIES; ++i) {
-                    if (verify_block (target, addr, len, info_flash, 0))
-                        break;
-                    if (debug_level > 0)
-                        fprintf (stderr, "Verify failed for block at %08X, retry...\n", addr);
-                    if (! verify_only) {
-                        /*
-                        target_close (target);
-                        free (target);
-
-                        target = target_open (1);
-                        if (! target) {
-                            fprintf (stderr, _("Error detecting device -- check cable!\n"));
-                            exit (1);
-                        }
-                        */
-                        target_erase_block (target, addr);
-                        program_block (target, addr, len, info_flash);
-                    }                    
-                }
-                nb_of_retries += i;
-                if (i == BLOCK_PROG_NB_RETRIES) {
-                    fprintf (stderr, "\nVerification failed!\n");
-                    printf ("Nb of retries: %d\n", nb_of_retries);
-                    exit(0);
-                }
-                progress ();
-            }
-            printf (_("# done\n"));
-            printf (_("Rate: %ld bytes per second\n"),
-                memory_len * 1000L / mseconds_elapsed (t0));
-            printf ("Nb of retries: %d\n", nb_of_retries);
-        }
     }
+
+    target_close (target);
+    free (target);
+
+    target = target_open (1);
+    if (! target) {
+        fprintf (stderr, _("Error detecting device -- check cable!\n"));
+        exit (1);
+    }
+
+    printf (_("Verify:  "));
+    print_symbols ('.', progress_len);
+    print_symbols ('\b', progress_len);
+    fflush (stdout);
+
+    for (addr=0; (int)addr<memory_len; addr+=BLOCKSZ) {
+        len = BLOCKSZ;
+        if (memory_len - addr < len)
+            len = memory_len - addr;
+        progress ();
+        if (! verify_block (target, addr, len, info_flash))
+            exit (0);
+    }
+    printf (_("# done\n"));
+    printf (_("Rate: %ld bytes per second\n"),
+        memory_len * 1000L / mseconds_elapsed (t0));
 }
 
 void do_write ()
@@ -533,10 +510,7 @@ void do_write ()
     int len;
     int progress_len;
     void *t0;
-
-    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
-        memory_base + memory_len, memory_len);
-
+    
     /* Open and detect the device. */
     atexit (quit);
     target = target_open (1);
@@ -544,6 +518,13 @@ void do_write ()
         fprintf (stderr, _("Error detecting device -- check cable!\n"));
         exit (1);
     }
+    
+    if (memory_base == ~0)
+        memory_base = target_main_flash_addr (target);
+
+    printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
+        memory_base + memory_len, memory_len);
+
     printf (_("Processor: %s\n"), target_cpu_name (target));
 
     for (progress_step=1; ; progress_step<<=1) {
@@ -589,7 +570,7 @@ void do_write ()
         if (memory_len - addr < len)
             len = memory_len - addr;
         progress ();
-        if (! verify_block (target, addr, len, 0, 1))
+        if (! verify_block (target, addr, len, 0))
             exit (0);
     }
     printf (_("# done\n"));
@@ -608,6 +589,10 @@ void do_read (char *filename, int info_flash)
         perror (filename);
         exit (1);
     }
+    
+    if (memory_base == ~0)
+        memory_base = target_main_flash_addr (target);
+        
     printf (_("Memory: %08X-%08X, total %d bytes\n"), memory_base,
         memory_base + memory_len, memory_len);
 
@@ -748,14 +733,14 @@ int main (int argc, char **argv)
     setvbuf (stderr, (char *)NULL, _IOLBF, 0);
     printf (_("Programmer for Milandr ARM microcontrollers, Version %s\n"), VERSION);
     progname = argv[0];
-    copyright = _("Copyright (C) 2010, 2011, 2016 Serge Vakulenko");
+    copyright = _("Copyright (C) 2010, 2011 Serge Vakulenko");
     signal (SIGINT, interrupted);
 #ifdef __linux__
     signal (SIGHUP, interrupted);
 #endif
     signal (SIGTERM, interrupted);
 
-    while ((ch = getopt_long (argc, argv, "vDhrweaiCVW",
+    while ((ch = getopt_long (argc, argv, "vDhrweiCVW",
       long_options, 0)) != -1) {
         switch (ch) {
         case 'v':
@@ -773,9 +758,6 @@ int main (int argc, char **argv)
         case 'e':
             ++erase_mode;
             //erase_addr = strtoul (optarg, 0, 0);
-            continue;
-        case 'a':
-            ++prog_then_verify;
             continue;
         case 'i':
             ++info_flash;
@@ -814,12 +796,11 @@ usage:
         printf ("       file.srec           Code file in SREC format\n");
         printf ("       file.hex            Code file in HEX format\n");
         printf ("       file.bin            Code file in binary format\n");
-        printf ("       address             Address of flash memory, default depends on processor\n");
+        printf ("       address             Address of flash memory, main flash start for default\n");
         printf ("       -v                  Verify only\n");
         printf ("       -w                  Memory write mode\n");
         printf ("       -r                  Read mode\n");
         printf ("       -e                  Erase all\n");
-        printf ("       -a                  Verify only after full chip programming\n");
         printf ("       -i                  Use info flash instead of main\n");
         printf ("       -D                  Debug mode\n");
         printf ("       -h, --help          Print this help message\n");
@@ -848,7 +829,7 @@ usage:
         if (memory_len == 0) {
             memory_len = read_hex (argv[0], memory_data);
             if (memory_len == 0) {
-                memory_base = processor_base_addr();
+                memory_base = ~0;
                 memory_len = read_bin (argv[0], memory_data);
             }
         }
